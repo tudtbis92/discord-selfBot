@@ -388,12 +388,9 @@ export class BaseAgent extends Client {
 						return resolve();
 					}
 
-					const ugem1 = (uGem1 && this.gem1.length > 0) ? this.config.autoGem > 0
-						? Math.max(...this.gem1) : Math.min(...this.gem1) : undefined;
-					const ugem2 = (uGem2 && this.gem2.length > 0) ? this.config.autoGem > 0
-						? Math.max(...this.gem2) : Math.min(...this.gem2) : undefined;
-					const ugem3 = (uGem3 && this.gem3.length > 0) ? this.config.autoGem > 0
-						? Math.max(...this.gem3) : Math.min(...this.gem3) : undefined;
+					const ugem1 = (uGem1 && this.gem1.length > 0) ? Math.max(...this.gem1) : undefined;
+					const ugem2 = (uGem2 && this.gem2.length > 0) ? Math.min(...this.gem2) : undefined;
+					const ugem3 = (uGem3 && this.gem3.length > 0) ? Math.max(...this.gem3) : undefined;
 
 					if (!ugem1 && !ugem2 && !ugem3) return resolve();
 					await this.send(`use ${ugem1 ?? ""} ${ugem2 ?? ""} ${ugem3 ?? ""}`.replace(/\s+/g, " "));

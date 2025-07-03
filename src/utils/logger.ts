@@ -1,5 +1,6 @@
 import chalk from "chalk"
-import { createLogger, format, transports, Logger, LogEntry } from "winston"
+import { createLogger, format, transports, Logger } from "winston"
+import { TransformableInfo } from "logform";
 
 class CustomLogger {
     public logger: Logger
@@ -18,7 +19,12 @@ class CustomLogger {
             debug: chalk.blackBright("[DEBUG]"),
         };
 
-        const consoleFormat = printf(({ level, message, timestamp, stack }: LogEntry & { stack?: string }) => {
+        // ----- SỬA LỖI Ở ĐÂY -----
+        const consoleFormat = printf((info: TransformableInfo) => {
+            const { level, timestamp, stack } = info;
+            // Ép kiểu `message` một cách an toàn
+            const message = info.message as string; 
+
             const formattedTimestamp = chalk.bgYellow.black(timestamp)
             const levelLabel = levelFormats[level] || chalk.magenta(`[${level.toUpperCase()}]`)
             return stack
@@ -26,8 +32,13 @@ class CustomLogger {
                 : `${formattedTimestamp} ${levelLabel} ${level == "debug" ? chalk.blackBright(message) : message}`;
         })
 
-        const fileFormat = printf(({ level, message, timestamp, stack }) => {
-            return stack 
+        // ----- VÀ SỬA LỖI Ở ĐÂY -----
+        const fileFormat = printf((info: TransformableInfo) => {
+            const { level, timestamp, stack } = info;
+            // Ép kiểu `message` một cách an toàn
+            const message = info.message as string;
+
+            return stack
             ? `[${timestamp}] [${level.toUpperCase()}] ${message}\n  Stack trace:\n    ${stack}`
             : `[${timestamp}] [${level.toUpperCase()}] ${message}`
         })

@@ -14,14 +14,22 @@ class CustomLogger {
             sent: chalk.greenBright("[SENT]"),
             debug: chalk.blackBright("[DEBUG]"),
         };
-        const consoleFormat = printf(({ level, message, timestamp, stack }) => {
+        // ----- SỬA LỖI Ở ĐÂY -----
+        const consoleFormat = printf((info) => {
+            const { level, timestamp, stack } = info;
+            // Ép kiểu `message` một cách an toàn
+            const message = info.message;
             const formattedTimestamp = chalk.bgYellow.black(timestamp);
             const levelLabel = levelFormats[level] || chalk.magenta(`[${level.toUpperCase()}]`);
             return stack
                 ? `${formattedTimestamp} ${levelLabel} ${message}\n${chalk.redBright(stack)}`
                 : `${formattedTimestamp} ${levelLabel} ${level == "debug" ? chalk.blackBright(message) : message}`;
         });
-        const fileFormat = printf(({ level, message, timestamp, stack }) => {
+        // ----- VÀ SỬA LỖI Ở ĐÂY -----
+        const fileFormat = printf((info) => {
+            const { level, timestamp, stack } = info;
+            // Ép kiểu `message` một cách an toàn
+            const message = info.message;
             return stack
                 ? `[${timestamp}] [${level.toUpperCase()}] ${message}\n  Stack trace:\n    ${stack}`
                 : `[${timestamp}] [${level.toUpperCase()}] ${message}`;
