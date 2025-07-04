@@ -279,7 +279,7 @@ export class BaseAgent extends Client {
 				case "quote":
 					const quote = quotes[ranInt(0, quotes.length)];
 					if (!quote) throw new Error("Failed to fetch quote");
-					await this.sendQuote(quote, { withPrefix: false });
+					await this.send(quote, { withPrefix: false });
 					break;
 			}
 		} catch (err) {
