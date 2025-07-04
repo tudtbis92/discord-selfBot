@@ -27,6 +27,7 @@ export class BaseAgent extends Client {
 	public config!: Configuration;
 	public cache!: Configuration;
 	public activeChannel!: TextChannel;
+	public quoteChannel!: TextChannel;
 
 	totalCommands = 0;
 	totalTexts = 0;
@@ -83,6 +84,13 @@ export class BaseAgent extends Client {
 				this.config.channelID[0]
 			) as TextChannel;
 
+			if (this.config.quoteChannelID && this.config.quoteChannelID.length > 0){
+				this.quoteChannel = this.channels.cache.get(
+					this.config.quoteChannelID[0]
+				) as TextChannel;
+			}
+			
+
 			logger.info(`Loaded ${this.commands.size} commands`);
 			logger.info(`Running on channel: ${this.activeChannel.name}`);
 
@@ -116,6 +124,42 @@ export class BaseAgent extends Client {
 		{
 			withPrefix = true,
 			channel = this.activeChannel,
+			delay = ranInt(120, 1600),
+		}: SendOptions = {}
+	) => {
+		if (this.captchaDetected || this.paused) return;
+
+		if (delay) await this.sleep(delay);
+		if (withPrefix) message = [this.prefix, message].join(" ");
+		await channel.send(message).catch(e => logger.error(e));
+		if (withPrefix) logger.sent(message);
+		withPrefix ? this.totalCommands++ : this.totalTexts++;
+
+		if (this.config.autoQuest) {
+			this.activeChannel.createMessageCollector({
+				filter: m => m.author.id == this.owoID && m.content.includes(m.client.user?.username!) && m.content.includes("You finished a quest"),
+				max: 1, time: 15_000
+			}).once("collect", async (m) => {
+				logger.debug(m.content);
+				logger.debug("Quest completed! Reloading...");
+				logger.info("Quest completed! Reward:" + getQuestReward(m.content.split("earned: ")[1]));
+
+				logger.info("Deloading " + this.questCommands.length + " temporary features");
+
+				this.questCommands = [];
+				this.config.autoQuest = this.cache.autoQuest;
+				this.config.autoQuote = this.cache.autoQuote;
+			})
+		}
+
+		await this.sleep(ranInt(4800, 6200));
+	};
+
+	public sendQuote = async (
+		message: string,
+		{
+			withPrefix = true,
+			channel = this.quoteChannel,
 			delay = ranInt(120, 1600),
 		}: SendOptions = {}
 	) => {
@@ -184,6 +228,11 @@ export class BaseAgent extends Client {
 		this.activeChannel = this.channels.cache.get(
 			this.config.channelID[ranInt(0, this.config.channelID.length)]
 		) as TextChannel;
+		if (this.config.quoteChannelID && this.config.quoteChannelID.length > 0) {
+			this.quoteChannel = this.channels.cache.get(
+				this.config.quoteChannelID[ranInt(0, this.config.quoteChannelID.length)]
+			) as TextChannel;
+		}
 		this.coutChannel += ranInt(17, 51);
 
 		logger.info(`Switched to channel: ${this.activeChannel.name}`);
@@ -230,7 +279,7 @@ export class BaseAgent extends Client {
 				case "quote":
 					const quote = quotes[ranInt(0, quotes.length)];
 					if (!quote) throw new Error("Failed to fetch quote");
-					await this.send(quote, { withPrefix: false });
+					await this.sendQuote(quote, { withPrefix: false });
 					break;
 			}
 		} catch (err) {

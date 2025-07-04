@@ -77,6 +77,7 @@ export interface Configuration {
     token: string
     guildID: string
     channelID: string[]
+    quoteChannelID?: string[]
     wayNotify: Array<"webhook" | "dms" | "call" | "music" | "popup">
     webhookURL?: string
     musicPath?: string
