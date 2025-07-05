@@ -13,6 +13,7 @@ export class BaseAgent extends Client {
     config;
     cache;
     activeChannel;
+    quoteChannel;
     totalCommands = 0;
     totalTexts = 0;
     totalCaptcha = {
@@ -55,6 +56,9 @@ export class BaseAgent extends Client {
             if (this.config.prefix)
                 this.commands = await loadCommands();
             this.activeChannel = this.channels.cache.get(this.config.channelID[0]);
+            if (this.config.quoteChannelID && this.config.quoteChannelID.length > 0) {
+                this.quoteChannel = this.channels.cache.get(this.config.quoteChannelID[0]);
+            }
             logger.info(`Loaded ${this.commands.size} commands`);
             logger.info(`Running on channel: ${this.activeChannel.name}`);
             if (this.config.channelID.length > 1)
@@ -110,6 +114,33 @@ export class BaseAgent extends Client {
         }
         await this.sleep(ranInt(4800, 6200));
     };
+    sendQuote = async (message, { withPrefix = true, channel = this.quoteChannel, delay = ranInt(120, 1600), } = {}) => {
+        if (this.captchaDetected || this.paused)
+            return;
+        if (delay)
+            await this.sleep(delay);
+        if (withPrefix)
+            message = [this.prefix, message].join(" ");
+        await channel.send(message).catch(e => logger.error(e));
+        if (withPrefix)
+            logger.sent(message);
+        withPrefix ? this.totalCommands++ : this.totalTexts++;
+        if (this.config.autoQuest) {
+            this.activeChannel.createMessageCollector({
+                filter: m => m.author.id == this.owoID && m.content.includes(m.client.user?.username) && m.content.includes("You finished a quest"),
+                max: 1, time: 15_000
+            }).once("collect", async (m) => {
+                logger.debug(m.content);
+                logger.debug("Quest completed! Reloading...");
+                logger.info("Quest completed! Reward:" + getQuestReward(m.content.split("earned: ")[1]));
+                logger.info("Deloading " + this.questCommands.length + " temporary features");
+                this.questCommands = [];
+                this.config.autoQuest = this.cache.autoQuest;
+                this.config.autoQuote = this.cache.autoQuote;
+            });
+        }
+        await this.sleep(ranInt(4800, 6200));
+    };
     aReload = async (force = false) => {
         try {
             this.reloadTime = new Date().setUTCHours(24, ranInt(0, 30), ranInt(0, 59), ranInt(0, 1000));
@@ -133,6 +164,9 @@ export class BaseAgent extends Client {
     };
     cChannel = async () => {
         this.activeChannel = this.channels.cache.get(this.config.channelID[ranInt(0, this.config.channelID.length)]);
+        if (this.config.quoteChannelID && this.config.quoteChannelID.length > 0) {
+            this.quoteChannel = this.channels.cache.get(this.config.quoteChannelID[ranInt(0, this.config.quoteChannelID.length)]);
+        }
         this.coutChannel += ranInt(17, 51);
         logger.info(`Switched to channel: ${this.activeChannel.name}`);
         logger.info(`Next channel change after: ${this.coutChannel} commands`);
