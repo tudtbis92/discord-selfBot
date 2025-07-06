@@ -63,6 +63,7 @@ export class BaseAgent extends Client {
 	private gem1?: number[];
 	private gem2?: number[];
 	private gem3?: number[];
+	private star?: number[];
 
 	RETAINED_USERS_IDS = [this.owoID]
 
@@ -405,7 +406,7 @@ export class BaseAgent extends Client {
 		})
 	}
 
-	public aGem = async (uGem1: boolean, uGem2: boolean, uGem3: boolean) => {
+	public aGem = async (uGem1: boolean, uGem2: boolean, uGem3: boolean, uStar: boolean) => {
 		this.send("inv");
 
 		await new Promise<void>(resolve => {
@@ -422,14 +423,15 @@ export class BaseAgent extends Client {
 
 					if (this.config.autoCrate && this.inventory.includes("050")) {
 						await this.send("lb all");
-						return this.aGem(uGem1, uGem2, uGem3).then(() => resolve());
+						return this.aGem(uGem1, uGem2, uGem3, uStar).then(() => resolve());
 					}
 
 					this.gem1 = this.inventory.filter((item) => /^05[1-7]$/.test(item)).map(Number);
 					this.gem2 = this.inventory.filter((item) => /^(06[5-9]|07[0-1])$/.test(item)).map(Number);
 					this.gem3 = this.inventory.filter((item) => /^07[2-8]$/.test(item)).map(Number);
+					this.star = this.inventory.filter((item) => /^08[0-5]$/.test(item)).map(Number);
 
-					const gems = [...this.gem1, ...this.gem2, ...this.gem3].length;
+					const gems = [...this.gem1, ...this.gem2, ...this.gem3, ...this.star].length;
 					logger.info(`Found ${gems} type of Hunting gems in Inventory`);
 
 					if (gems == 0) {
@@ -440,9 +442,10 @@ export class BaseAgent extends Client {
 					const ugem1 = (uGem1 && this.gem1.length > 0) ? Math.max(...this.gem1) : undefined;
 					const ugem2 = (uGem2 && this.gem2.length > 0) ? Math.min(...this.gem2) : undefined;
 					const ugem3 = (uGem3 && this.gem3.length > 0) ? Math.max(...this.gem3) : undefined;
+					const ustar = (uStar && this.star.length > 0) ? Math.max(...this.star) : undefined;
 
-					if (!ugem1 && !ugem2 && !ugem3) return resolve();
-					await this.send(`use ${ugem1 ?? ""} ${ugem2 ?? ""} ${ugem3 ?? ""}`.replace(/\s+/g, " "));
+					if (!ugem1 && !ugem2 && !ugem3 && !ustar) return resolve();
+					await this.send(`use ${ugem1 ?? ""} ${ugem2 ?? ""} ${ugem3 ?? ""} ${ustar ?? ""}`.replace(/\s+/g, " "));
 					resolve();
 				}).once("end", col => {
 					if (col.size === 0) resolve();
@@ -466,7 +469,8 @@ export class BaseAgent extends Client {
 					let param1 = !msg.content.includes("gem1") && (!this.gem1 || this.gem1.length > 0);
 					let param2 = !msg.content.includes("gem3") && (!this.gem2 || this.gem2.length > 0);
 					let param3 = !msg.content.includes("gem4") && (!this.gem3 || this.gem3.length > 0);
-					if (param1 || param2 || param3) await this.aGem(param1, param2, param3);
+					let param4 = !msg.content.includes("star") && (!this.star || this.star.length > 0);
+					if (param1 || param2 || param3 || param4) await this.aGem(param1, param2, param3, param4);
 					resolve();
 				}).once("end", col => {
 					if (col.size === 0) resolve();
