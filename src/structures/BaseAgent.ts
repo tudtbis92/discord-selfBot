@@ -673,9 +673,9 @@ export class BaseAgent extends Client {
 
 			// Dùng regex để lấy số xu bạc một cách chính xác
 			const coinMatch = shopEmbed.description.match(/Hiện có: ([\d,]+)\s*<:/);
-			logger.debug(`[Mua Mồi] Cửa hàng trả về: ${shopEmbed.description}`);
-			logger.debug(`[Mua Mồi] Regex tìm kiếm xu bạc: ${coinMatch}`);
-			logger.debug(`[Mua Mồi] Kết quả regex: ${coinMatch ? coinMatch[1] : "Không tìm thấy"}`);
+			logger.info(`[Mua Mồi] Cửa hàng trả về: ${shopEmbed.description}`);
+			logger.info(`[Mua Mồi] Regex tìm kiếm xu bạc: ${coinMatch}`);
+			logger.info(`[Mua Mồi] Kết quả regex: ${coinMatch ? coinMatch[1] : "Không tìm thấy"}`);
 			if (!coinMatch || !coinMatch[1]) {
 				logger.error("[Mua Mồi] Không tìm thấy số lượng xu bạc trong cửa hàng.");
 				return false;
