@@ -22,6 +22,7 @@ import { commandHandler } from "../handler/commandHandler.js";
 import { dmsHandler } from "../handler/dmsHandler.js";
 import { loadSweeper } from "../feats/sweeper.js";
 import { getQuestReward, processQuestLogs } from "../feats/quest.js";
+import { awaitMessageWithEdits } from "../utils/messageUtils.js";
 
 export class BaseAgent extends Client {
 	public config!: Configuration;
@@ -502,33 +503,17 @@ export class BaseAgent extends Client {
 			channel = this.caucaChannel,
 			delay = ranInt(120, 1600),
 		}: SendOptions = {}
-	) => {
-		// if (this.captchaDetected || this.paused) return;
-
-		// if (delay) await this.sleep(delay);
+	): Promise<Message | undefined> => {
 		if (withPrefix) message = [this.pnvPrefix, message].join(" ");
-		await channel.send(message).catch(e => logger.error(e));
-		if (withPrefix) logger.sent(message);
-		// withPrefix ? this.totalCommands++ : this.totalTexts++;
-
-		// if (this.config.autoQuest) {
-		// 	this.activeChannel.createMessageCollector({
-		// 		filter: m => m.author.id == this.owoID && m.content.includes(m.client.user?.username!) && m.content.includes("You finished a quest"),
-		// 		max: 1, time: 15_000
-		// 	}).once("collect", async (m) => {
-		// 		logger.debug(m.content);
-		// 		logger.debug("Quest completed! Reloading...");
-		// 		logger.info("Quest completed! Reward:" + getQuestReward(m.content.split("earned: ")[1]));
-
-		// 		logger.info("Deloading " + this.questCommands.length + " temporary features");
-
-		// 		this.questCommands = [];
-		// 		this.config.autoQuest = this.cache.autoQuest;
-		// 		this.config.autoQuote = this.cache.autoQuote;
-		// 	})
-		// }
-
-		// await this.sleep(ranInt(4800, 6200));
+		try {
+			// Gửi tin nhắn và return đối tượng Message nhận được
+			const sentMessage = await channel.send(message);
+			if (withPrefix) logger.sent(message);
+			return sentMessage;
+		} catch (e) {
+			logger.error(`Failed to send cauca message: ${e}`);
+			return undefined; // Trả về undefined nếu có lỗi xảy ra
+		}
 	};
 
 	public sendBanCa = async (
@@ -544,12 +529,21 @@ export class BaseAgent extends Client {
 		// if (delay) await this.sleep(delay);
 		// message = 'banca';
 		if (withPrefix) message = [this.pnvPrefix, message].join(" ");
-		await channel.send(message).catch(e => logger.error(e));
+		let bancaMsg: Message;
+		try {
+			// Thử gửi tin nhắn. Nếu thành công, gán kết quả cho bancaMsg
+			bancaMsg = await channel.send(message);
+		} catch (error) {
+			// Nếu có lỗi, ghi log và dừng hàm để code bên dưới không chạy
+			logger.error('Failed to send banca message: ' + error);
+			return; // Rất quan trọng: Dừng thực thi hàm nếu gửi tin nhắn thất bại
+		}
 		if (withPrefix) logger.sent(message);
 
 		try {
 			this.bancaChannel.createMessageCollector({
-				filter: (msg) => msg.author.id === this.pnvCauCaId 
+				filter: (msg) => msg.author.id === this.pnvCauCaId
+					&& msg.reference?.messageId === bancaMsg.id 
 					&& msg.embeds.length > 0 
 					&& Boolean(msg.embeds[0].author?.name?.includes("Cửa Hàng Bán Cá"))
 					&& msg.components.length > 0
@@ -567,11 +561,12 @@ export class BaseAgent extends Client {
 
 	public aVotSo = async () => {
 		const command = 'votso';
-		await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
+		let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
 		this.votSoTime = Date.now();
 
 		this.caucaChannel.createMessageCollector({
-			filter: (msg) => msg.author.id === this.pnvCauCaId 
+			filter: (msg) => msg.author.id === this.pnvCauCaId
+				&& msg.reference?.messageId === respond?.id
 				&& msg.embeds.length > 0 
 				&& Boolean(msg.embeds[0].author?.name?.includes("Đã xảy ra lỗi"))
 				&& Boolean(msg.embeds[0].description?.includes("Túi của bạn đã đầy")),
@@ -583,81 +578,55 @@ export class BaseAgent extends Client {
 		})
 	}
 
-	public main = async () => {
-		if (this.captchaDetected || this.paused) return;
+	public aCauCa = async () => {
+		const command = 'cauca';
+		let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
 
-		let commands: CommandCondition[] = [
-			{
-				condition: () =>
-					this.config.autoPray.length > 0 &&
-					Date.now() - this.toutPray >= 360_000,
-				action: this.aPray,
-			},
-			{
-				condition: () =>
-					this.config.autoDaily,
-				action: this.aDaily
-			},
-			{
-				condition: () =>
-					this.config.autoOther.length > 0 &&
-					Date.now() - this.toutOther >= 60_000,
-				action: this.aOther,
-			},
-			{
-				condition: () =>
-					this.config.autoSleep &&
-					this.totalCommands >= this.coutSleep,
-				action: this.aSleep,
-			},
-			{
-				condition: () =>
-					this.config.channelID.length > 1 &&
-					this.totalCommands >= this.coutChannel,
-				action: this.cChannel,
-			},
-			{
-				condition: () =>
-					this.config.autoReload &&
-					Date.now() > this.reloadTime,
-				action: this.aReload,
-			},
-			{
-				condition: () =>
-					this.config.autoQuote.length > 0,
-				action: this.aQuote,
-			},
-			{
-				condition:() =>
-					this.config.autoCookie,
-				action: this.aCookie,
-			},
-			{
-				condition: () =>
-					this.config.autoClover,
-				action: this.aClover,
-			}
-		];
-
-		commands = shuffleArray(commands.concat(this.questCommands));
-
-		// console.log(Object.keys(this.config).map(k => ({ [k]: [this.cache[k], this.config[k]] })))
-		for (const command of commands) {
-			if (this.captchaDetected || this.paused) return;
-
-			if (Date.now() - this.lastTime > 15_000) await this.aOrdinary();
-			// let votSoCheck = Date.now() - this.votSoTime;
-			// if (votSoCheck > 60_000) {
-			// 	// console.log(`votSoTime: ${this.votSoTime}, votSoCheck: ${votSoCheck}`);
-			// 	await this.aVotSo();
-			// }
-
-			if (command.condition()) await command.action();
-			const delay = ranInt(15000, 22000) / commands.length;
-			await this.sleep(ranInt(delay - 3000, delay + 2400));
+		let initialReply: Message;
+		try {
+			const initialFilter = (msg: Message) =>
+				msg.author.id === this.pnvCauCaId &&
+				msg.reference?.messageId === respond?.id;
+			const collectedReplies = await this.caucaChannel.awaitMessages({
+				filter: initialFilter,
+				max: 1,
+				time: 15_000,
+			});
+			initialReply = collectedReplies.first() as Message;
+		} catch (error) {
+			logger.error("Failed to collect initial reply for cauca: " + error);
+			return;
 		}
 
-		await this.sleep(ranInt(2000, 5000))
+		try {
+			const filter = (msg: Message) =>
+				msg.author.id === this.pnvCauCaId &&
+				msg.reference?.messageId === respond?.id &&
+				msg.embeds.length > 0 &&
+				Boolean(msg.embeds[0].author?.name?.includes("Cá đã cắn câu")) &&
+				msg.components.length > 0;
+			const collectedMsg = await awaitMessageWithEdits(
+				this,
+				this.caucaChannel as TextChannel,
+				filter,
+				40_000
+			);
+
+			await collectedMsg.clickButton({ X: 0, Y: 0 });
+		} catch (error) {
+			logger.error("Failed to collect message for cauca: " + error);
+			return;
+		}
+	}
+
+	public main = async () => {		
+		let votSoCheck = Date.now() - this.votSoTime;
+		if (votSoCheck > 60_000) {
+			// console.log(`votSoTime: ${this.votSoTime}, votSoCheck: ${votSoCheck}`);
+			await this.aVotSo();
+		}
+
+		// await this.sleep(ranInt(2000, 5000))
 		this.main();
 	};
 
