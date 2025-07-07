@@ -45,6 +45,8 @@ export class BaseAgent extends Client {
 	pnvCauCaId = "1382759060847460402";
 	pnvPrefix = "pnv";
 	private isCauCaRunning: boolean = false;
+	private isNhiemVuRunning: boolean = false;
+	private lastNhiemVuTime: number = 0;
 
 	private owoCommands = shuffleArray([
 		...Array<string>(5).fill("hunt"),
@@ -524,7 +526,7 @@ export class BaseAgent extends Client {
 			channel = this.bancaChannel,
 			delay = ranInt(120, 1600),
 		}: SendOptions = {}
-	) => {
+	): Promise<boolean> => {
 		// if (this.captchaDetected || this.paused) return;
 
 		// if (delay) await this.sleep(delay);
@@ -537,46 +539,91 @@ export class BaseAgent extends Client {
 		} catch (error) {
 			// Nếu có lỗi, ghi log và dừng hàm để code bên dưới không chạy
 			logger.error('Failed to send banca message: ' + error);
-			return; // Rất quan trọng: Dừng thực thi hàm nếu gửi tin nhắn thất bại
+			return false; // Rất quan trọng: Dừng thực thi hàm nếu gửi tin nhắn thất bại
 		}
 		if (withPrefix) logger.sent(message);
 
 		try {
-			this.bancaChannel.createMessageCollector({
-				filter: (msg) => msg.author.id === this.pnvCauCaId
-					&& msg.reference?.messageId === bancaMsg.id 
-					&& msg.embeds.length > 0 
-					&& Boolean(msg.embeds[0].author?.name?.includes("Cửa Hàng Bán Cá"))
-					&& msg.components.length > 0
-					&& msg.components[0].components.some(c => Boolean(c.customId?.endsWith(msg.client.user?.id!))),
-				max: 1, time: 15_000
-			}).once("collect", async (m) => {
-				logger.debug(m.content);
-				logger.debug("Banca command executed successfully!");
-				await m.clickButton({ X: 0, Y: 0 })
-			})
+			const collectedReplies = await this.bancaChannel.awaitMessages({
+				filter: (msg) => msg.author.id === this.pnvCauCaId && msg.reference?.messageId === bancaMsg.id,
+				max: 1,
+				time: 15_000,
+				errors: ['time']
+			});
+
+			const replyMsg = collectedReplies.first();
+			if (!replyMsg) return false;
+
+			// Tìm nút "Bán tất cả" dựa trên customId (an toàn hơn là dựa vào vị trí)
+			const sellAllButton = replyMsg.components
+				.flatMap(row => row.components) // Lấy tất cả button từ các hàng
+				.find(button => button.customId?.endsWith(this.user?.id!) && button.customId?.includes("sell_all_fish")); // Tìm nút có ID của bot
+
+			if (sellAllButton) {
+				logger.info("[Bán Cá] Đã tìm thấy nút bán tất cả, tiến hành click...");
+				await this.sleep(ranInt(500, 1000));
+				await replyMsg.clickButton(sellAllButton.customId!);
+				logger.info("[Bán Cá] Đã bán cá thành công!");
+				return true; // Trả về true khi thành công
+			} else {
+				logger.warn("[Bán Cá] Không tìm thấy nút 'Bán tất cả' trong tin nhắn phản hồi.");
+				return false;
+			}
 		} catch (error) {
 			logger.error("Failed to execute banca command: " + error);
+			return false; // Trả về false nếu có lỗi xảy ra
 		}
 	};
 
 	public aVotSo = async () => {
+		logger.info("[Vợt sò] Đang thực hiện vợt sò...");
 		const command = 'votso';
 		let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
-		this.votSoTime = Date.now();
+		try {
+			// Chờ tin nhắn phản hồi từ lệnh votSo
+			const collectedReplies = await this.caucaChannel.awaitMessages({
+				filter: msg => msg.author.id === this.pnvCauCaId && msg.reference?.messageId === respond?.id,
+				max: 1,
+				time: 15_000,
+				errors: ['time']
+			});
 
-		this.caucaChannel.createMessageCollector({
-			filter: (msg) => msg.author.id === this.pnvCauCaId
-				&& msg.reference?.messageId === respond?.id
-				&& msg.embeds.length > 0 
-				&& Boolean(msg.embeds[0].author?.name?.includes("Đã xảy ra lỗi"))
-				&& Boolean(msg.embeds[0].description?.includes("Túi của bạn đã đầy")),
-			max: 1, time: 15_000
-		}).once("collect", async (m) => {
-			logger.debug(m.content);
-			await this.sendBanCa("banca");
-			await this.aVotSo();
-		})
+			const replyMsg = collectedReplies.first();
+			if (!replyMsg?.embeds.length) return; // Nếu không có embed thì bỏ qua
+
+			const embed = replyMsg.embeds[0];
+			const embedDescription = embed.description || "";
+			const embedAuthorName = embed.author?.name || "";
+
+			// Trường hợp 1: Vợt sò thành công
+			if (embedDescription.includes("Bạn đã vợt sò thành công")) {
+				logger.info("[Vợt sò] Vợt sò thành công!");
+				this.votSoTime = Date.now(); // **Chỉ cập nhật thời gian khi thành công**
+			}
+			// Trường hợp 2: Túi cá đã đầy
+			else if (embedAuthorName.includes("Đã xảy ra lỗi") && embedDescription.includes("Túi của bạn đã đầy")) {
+				logger.warn("[Vợt sò] Vợt sò thất bại do túi đầy. Tiến hành bán cá...");
+				
+				// **Await hàm aSellFish và kiểm tra kết quả**
+				const soldSuccessfully = await this.sendBanCa("banca", { withPrefix: true, channel: this.bancaChannel });
+
+				if (soldSuccessfully) {
+					logger.info("[Vợt sò] Bán cá thành công, thử vợt sò lại ngay lập tức.");
+					await this.sleep(2000); // Chờ 2s rồi vợt sò lại
+					await this.aVotSo(); // Gọi lại chính nó để thử lại
+				} else {
+					logger.error("[Vợt sò] Bán cá thất bại, sẽ thử lại sau.");
+					// Không cập nhật votSoTime để vòng lặp main thử lại sớm
+				}
+			}			
+			// Trường hợp khác
+			else {
+				logger.warn(`[Vợt sò] Nhận được phản hồi không xác định: ${embedDescription}`);
+			}
+
+		} catch (error) {
+			logger.error("[Vợt sò] Không nhận được phản hồi từ lệnh votso (timeout).");
+		}
 	}
 
 	public aCauCa = async () => {
@@ -615,7 +662,7 @@ export class BaseAgent extends Client {
 			}
 
 			// --- XỬ LÝ LỖI TÚI ĐẦY (VÍ DỤ) ---
-			if (replyContent.includes("đầy túi")) {
+			if (replyContent.includes("Túi Cá Của Bạn Đã Đầy") || replyContent.includes("túi đã hết chỗ chứa")) {
 				logger.warn("[Câu Cá] Túi cá đã đầy, cần thực hiện lệnh bán cá.");
 				await this.sendBanCa("banca");
 				return; // Dừng lại để vòng lặp main gọi lại sau
@@ -635,7 +682,38 @@ export class BaseAgent extends Client {
 					40_000
 				);
 
-				await collectedMsg.clickButton({ X: 0, Y: 0 });
+				let successBtnPos: { X: number; Y: number } | null = null;
+				const otherBtnPositions: { X: number; Y: number }[] = [];
+				collectedMsg.components.forEach((row, y) => {
+					row.components.forEach((button, x) => {
+						if (button.customId?.includes('success')) {
+							successBtnPos = { X: x, Y: y };
+						} else {
+							otherBtnPositions.push({ X: x, Y: y });
+						}
+					});
+				});
+
+				if (!successBtnPos) {
+					logger.error("[Câu Cá] Không tìm thấy nút 'success' để giật cần.");
+					return;
+				}
+				const isSuccessClick = Math.random() < 0.8;
+				let targetPosition: { X: number; Y: number };
+
+				if (isSuccessClick || otherBtnPositions.length === 0) {
+					// Click nút thành công nếu:
+					// - Rơi vào 80% may mắn
+					// - Hoặc không có nút nào khác để mà bấm trật
+					targetPosition = successBtnPos;
+					logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Thành công)...");
+				} else {
+					// Click vào một nút ngẫu nhiên khác để "câu trật"
+					targetPosition = otherBtnPositions[Math.floor(Math.random() * otherBtnPositions.length)];
+					logger.warn("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Cố tình trật)...");
+				}
+
+				await collectedMsg.clickButton(targetPosition);
 				await this.aCauCa();
 			} catch (error) {
 				logger.error("Failed to collect message for cauca: " + error);
@@ -705,7 +783,65 @@ export class BaseAgent extends Client {
 		}
 	}
 
+	public aNhiemVu = async () => {
+		if (this.isNhiemVuRunning) return;
+		this.isNhiemVuRunning = true;
+		
+		logger.info("[Nhiệm Vụ] Bắt đầu kiểm tra nhiệm vụ...");
+
+		try {
+			const commandMsg = await this.sendCauCa('nhiemvu', { withPrefix: true, channel: this.caucaChannel });
+			if (!commandMsg) return;
+
+			// Chờ tin nhắn phản hồi từ bot
+			const collectedReplies = await this.caucaChannel.awaitMessages({
+				filter: msg => msg.author.id === this.pnvCauCaId && msg.reference?.messageId === commandMsg.id,
+				max: 1,
+				time: 15_000,
+				errors: ['time']
+			});
+
+			const replyMsg = collectedReplies.first();
+			if (!replyMsg) {
+				logger.warn("[Nhiệm Vụ] Không nhận được phản hồi khi kiểm tra nhiệm vụ.");
+				return;
+			}
+
+			// 1. Tìm nút "Nhận thưởng" trong các component của tin nhắn
+			let receiveButton = null;
+			for (const row of replyMsg.components) {
+				const foundButton = row.components.find(comp => comp.customId?.includes("claim"));
+				if (foundButton) {
+					receiveButton = foundButton;
+					break;
+				}
+			}
+
+			// 2. Kiểm tra xem nút có tồn tại và có đang được bật (enable) hay không
+			if (receiveButton && !receiveButton.disabled) {
+				logger.info("[Nhiệm Vụ] Phát hiện có thể nhận thưởng, tiến hành nhận...");
+				await this.sleep(ranInt(1000, 2000)); // Chờ một chút cho tự nhiên
+
+				// 3. Click vào nút bằng customId của nó
+				await replyMsg.clickButton(receiveButton.customId!);
+				logger.info("[Nhiệm Vụ] Đã gửi yêu cầu nhận thưởng.");
+
+			} else {
+				logger.info("[Nhiệm Vụ] Chưa hoàn thành hoặc không có phần thưởng để nhận.");
+			}
+
+		} catch (error) {
+			logger.error("[Nhiệm Vụ] Có lỗi xảy ra: " + error);
+		} finally {
+			// Cập nhật lại thời gian và tắt cờ trạng thái
+			this.lastNhiemVuTime = Date.now();
+			this.isNhiemVuRunning = false;
+			logger.info("[Nhiệm Vụ] Kiểm tra nhiệm vụ hoàn tất.");
+		}
+	}
+
 	public main = async () => {		
+		const resetHours = [0, 6, 12, 18];
 		// Dùng while(true) thay cho đệ quy để an toàn hơn
 		while (true) {
 			// --- Xử lý VotSo (vẫn như cũ) ---
@@ -719,6 +855,40 @@ export class BaseAgent extends Client {
 			if (!this.isCauCaRunning) {
 				// Không dùng await để nó chạy trong nền
 				this.aCauCa(); 
+			}
+
+			// --- LOGIC KIỂM TRA NHIỆM VỤ ĐÃ NÂNG CẤP ---
+			if (!this.isNhiemVuRunning) {
+				const now = new Date();
+				const thirtyMinutes = 30 * 60 * 1000;
+				
+				// Điều kiện 1: Đã hơn 30 phút kể từ lần kiểm tra cuối
+				const shouldRunByInterval = Date.now() - this.lastNhiemVuTime > thirtyMinutes;
+
+				// Điều kiện 2: Kiểm tra có đang trong 2 phút trước mốc reset hay không
+				let shouldRunForReset = false;
+				const currentHour = now.getHours();
+				const currentMinute = now.getMinutes();
+
+				for (const resetHour of resetHours) {
+					// Ví dụ: resetHour là 12, sẽ kiểm tra nếu giờ hiện tại là 11 và phút là 58 hoặc 59
+					// Phép tính (resetHour - 1 + 24) % 24 xử lý đúng cho cả trường hợp mốc 0h (khi giờ là 23)
+					if (currentHour === (resetHour - 1 + 24) % 24 && currentMinute >= 58) {
+						shouldRunForReset = true;
+						break; // Tìm thấy một mốc hợp lệ là đủ, thoát vòng lặp
+					}
+				}
+
+				// Chỉ kích hoạt kiểm tra trước mốc reset nếu lần cuối kiểm tra đã cách đây hơn 5 phút
+				// Điều này để tránh việc bot chạy lại nhiệm vụ nhiều lần trong cùng một cửa sổ 2 phút
+				if (shouldRunForReset && (Date.now() - this.lastNhiemVuTime < 5 * 60 * 1000)) {
+					shouldRunForReset = false;
+				}
+
+				// Chạy aNhiemVu nếu một trong hai điều kiện là đúng
+				if (shouldRunByInterval || shouldRunForReset) {
+					this.aNhiemVu();
+				}
 			}
 
 			// --- Các tác vụ khác của bạn có thể thêm vào đây ---
