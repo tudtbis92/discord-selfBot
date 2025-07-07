@@ -531,10 +531,55 @@ export class BaseAgent extends Client {
 		// await this.sleep(ranInt(4800, 6200));
 	};
 
+	public sendBanCa = async (
+		message: string,
+		{
+			withPrefix = true,
+			channel = this.bancaChannel,
+			delay = ranInt(120, 1600),
+		}: SendOptions = {}
+	) => {
+		// if (this.captchaDetected || this.paused) return;
+
+		// if (delay) await this.sleep(delay);
+		// message = 'banca';
+		if (withPrefix) message = [this.pnvPrefix, message].join(" ");
+		await channel.send(message).catch(e => logger.error(e));
+		if (withPrefix) logger.sent(message);
+
+		try {
+			this.bancaChannel.createMessageCollector({
+				filter: (msg) => msg.author.id === this.pnvCauCaId 
+					&& msg.embeds.length > 0 
+					&& Boolean(msg.embeds[0].author?.name?.includes("Cửa Hàng Bán Cá"))
+					&& msg.components.length > 0
+					&& msg.components[0].components.some(c => Boolean(c.customId?.endsWith(msg.client.user?.id!))),
+				max: 1, time: 15_000
+			}).once("collect", async (m) => {
+				logger.debug(m.content);
+				logger.debug("Banca command executed successfully!");
+				await m.clickButton({ X: 0, Y: 0 })
+			})
+		} catch (error) {
+			logger.error("Failed to execute banca command: " + error);
+		}
+	};
+
 	public aVotSo = async () => {
 		const command = 'votso';
 		await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
 		this.votSoTime = Date.now();
+
+		this.caucaChannel.createMessageCollector({
+			filter: (msg) => msg.author.id === this.pnvCauCaId 
+				&& msg.embeds.length > 0 
+				&& Boolean(msg.embeds[0].author?.name?.includes("Đã xảy ra lỗi"))
+				&& Boolean(msg.embeds[0].description?.includes("Túi của bạn đã đầy")),
+			max: 1, time: 15_000
+		}).once("collect", async (m) => {
+			logger.debug(m.content);
+			await this.sendBanCa("banca");
+		})
 	}
 
 	public main = async () => {
