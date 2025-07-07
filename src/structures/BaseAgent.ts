@@ -577,6 +577,7 @@ export class BaseAgent extends Client {
 
 	public aVotSo = async () => {
 		logger.info("[Vợt sò] Đang thực hiện vợt sò...");
+		this.votSoTime = Date.now();
 		const command = 'votso';
 		let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
 		try {
@@ -597,8 +598,7 @@ export class BaseAgent extends Client {
 
 			// Trường hợp 1: Vợt sò thành công
 			if (embedDescription.includes("Bạn đã vợt sò thành công")) {
-				logger.info("[Vợt sò] Vợt sò thành công!");
-				this.votSoTime = Date.now(); // **Chỉ cập nhật thời gian khi thành công**
+				logger.info("[Vợt sò] Vợt sò thành công!");				
 			}
 			// Trường hợp 2: Túi cá đã đầy
 			else if (embedAuthorName.includes("Đã xảy ra lỗi") && embedDescription.includes("Túi của bạn đã đầy")) {
