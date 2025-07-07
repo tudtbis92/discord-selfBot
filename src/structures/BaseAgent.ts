@@ -682,38 +682,50 @@ export class BaseAgent extends Client {
 					40_000
 				);
 
-				let successBtnPos: { X: number; Y: number } | null = null;
-				const otherBtnPositions: { X: number; Y: number }[] = [];
-				collectedMsg.components.forEach((row, y) => {
-					row.components.forEach((button, x) => {
-						if (button.customId?.includes('success')) {
-							successBtnPos = { X: x, Y: y };
-						} else {
-							otherBtnPositions.push({ X: x, Y: y });
-						}
-					});
-				});
+				// let successBtnPos: { X: number; Y: number } | null = null;
+				// const otherBtnPositions: { X: number; Y: number }[] = [];
+				// collectedMsg.components.forEach((row, y) => {
+				// 	row.components.forEach((button, x) => {
+				// 		if (button.customId?.includes('success')) {
+				// 			successBtnPos = { X: x, Y: y };
+				// 		} else {
+				// 			otherBtnPositions.push({ X: x, Y: y });
+				// 		}
+				// 	});
+				// });
 
-				if (!successBtnPos) {
-					logger.error("[Câu Cá] Không tìm thấy nút 'success' để giật cần.");
+				// if (!successBtnPos) {
+				// 	logger.error("[Câu Cá] Không tìm thấy nút 'success' để giật cần.");
+				// 	return;
+				// }
+				// const isSuccessClick = Math.random() < 0.8;
+				// let targetPosition: { X: number; Y: number };
+
+				// if (isSuccessClick || otherBtnPositions.length === 0) {
+				// 	// Click nút thành công nếu:
+				// 	// - Rơi vào 80% may mắn
+				// 	// - Hoặc không có nút nào khác để mà bấm trật
+				// 	targetPosition = successBtnPos;
+				// 	logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Thành công)...");
+				// } else {
+				// 	// Click vào một nút ngẫu nhiên khác để "câu trật"
+				// 	targetPosition = otherBtnPositions[Math.floor(Math.random() * otherBtnPositions.length)];
+				// 	logger.warn("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Cố tình trật)...");
+				// }
+
+				// await collectedMsg.clickButton(targetPosition);
+				
+				// Nếu không có nút nào, báo lỗi và thoát
+				if (collectedMsg.components.length === 0 || collectedMsg.components[0].components.length === 0) {
+					logger.error("[Câu Cá] Không tìm thấy bất kỳ nút nào để giật cần.");
 					return;
 				}
-				const isSuccessClick = Math.random() < 0.8;
-				let targetPosition: { X: number; Y: number };
+				
+				logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Luôn chọn nút đầu tiên)...");
 
-				if (isSuccessClick || otherBtnPositions.length === 0) {
-					// Click nút thành công nếu:
-					// - Rơi vào 80% may mắn
-					// - Hoặc không có nút nào khác để mà bấm trật
-					targetPosition = successBtnPos;
-					logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Thành công)...");
-				} else {
-					// Click vào một nút ngẫu nhiên khác để "câu trật"
-					targetPosition = otherBtnPositions[Math.floor(Math.random() * otherBtnPositions.length)];
-					logger.warn("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Cố tình trật)...");
-				}
-
-				await collectedMsg.clickButton(targetPosition);
+				// Thực hiện click vào nút ở vị trí đầu tiên (Hàng 0, Cột 0)
+				await this.sleep(ranInt(300, 800));
+				await collectedMsg.clickButton({ X: 0, Y: 0 });
 				await this.aCauCa();
 			} catch (error) {
 				logger.error("Failed to collect message for cauca: " + error);
