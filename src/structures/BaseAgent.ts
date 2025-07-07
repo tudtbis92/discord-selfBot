@@ -579,6 +579,7 @@ export class BaseAgent extends Client {
 		}).once("collect", async (m) => {
 			logger.debug(m.content);
 			await this.sendBanCa("banca");
+			await this.aVotSo();
 		})
 	}
 
