@@ -28,6 +28,8 @@ export class BaseAgent extends Client {
 	public cache!: Configuration;
 	public activeChannel!: TextChannel;
 	public quoteChannel!: TextChannel;
+	public caucaChannel!: TextChannel;
+	public bancaChannel!: TextChannel;
 
 	totalCommands = 0;
 	totalTexts = 0;
@@ -38,6 +40,9 @@ export class BaseAgent extends Client {
 
 	owoID = "408785106942164992";
 	prefix = "owo";
+
+	pnvCauCaId = "1382759060847460402";
+	pnvPrefix = "pnv";
 
 	private owoCommands = shuffleArray([
 		...Array<string>(5).fill("hunt"),
@@ -53,6 +58,7 @@ export class BaseAgent extends Client {
 	private coutSleep = ranInt(38, 92);
 
 	private lastTime = 0;
+	private votSoTime = 0;
 	private sleepTime = mapInt(this.coutSleep, 38, 92, 150_000, 1_000_000);
 	private reloadTime = Date.now() + 60 * 1000 //new Date().setUTCHours(24, ranInt(0, 30), ranInt(0, 59));
 
@@ -90,7 +96,18 @@ export class BaseAgent extends Client {
 					this.config.quoteChannelID[0]
 				) as TextChannel;
 			}
-			
+
+			if (this.config.caucaChannelID && this.config.caucaChannelID.length > 0) {
+				this.caucaChannel = this.channels.cache.get(
+					this.config.caucaChannelID
+				) as TextChannel;
+			}			
+
+			if (this.config.bancaChannelID && this.config.bancaChannelID.length > 0) {
+				this.bancaChannel = this.channels.cache.get(
+					this.config.bancaChannelID
+				) as TextChannel;
+			}			
 
 			logger.info(`Loaded ${this.commands.size} commands`);
 			logger.info(`Running on channel: ${this.activeChannel.name}`);
@@ -478,6 +495,47 @@ export class BaseAgent extends Client {
 		})
 	}
 
+	public sendCauCa = async (
+		message: string,
+		{
+			withPrefix = true,
+			channel = this.caucaChannel,
+			delay = ranInt(120, 1600),
+		}: SendOptions = {}
+	) => {
+		// if (this.captchaDetected || this.paused) return;
+
+		// if (delay) await this.sleep(delay);
+		if (withPrefix) message = [this.pnvPrefix, message].join(" ");
+		await channel.send(message).catch(e => logger.error(e));
+		if (withPrefix) logger.sent(message);
+		// withPrefix ? this.totalCommands++ : this.totalTexts++;
+
+		// if (this.config.autoQuest) {
+		// 	this.activeChannel.createMessageCollector({
+		// 		filter: m => m.author.id == this.owoID && m.content.includes(m.client.user?.username!) && m.content.includes("You finished a quest"),
+		// 		max: 1, time: 15_000
+		// 	}).once("collect", async (m) => {
+		// 		logger.debug(m.content);
+		// 		logger.debug("Quest completed! Reloading...");
+		// 		logger.info("Quest completed! Reward:" + getQuestReward(m.content.split("earned: ")[1]));
+
+		// 		logger.info("Deloading " + this.questCommands.length + " temporary features");
+
+		// 		this.questCommands = [];
+		// 		this.config.autoQuest = this.cache.autoQuest;
+		// 		this.config.autoQuote = this.cache.autoQuote;
+		// 	})
+		// }
+
+		// await this.sleep(ranInt(4800, 6200));
+	};
+
+	public aVotSo = async () => {
+		const command = 'votso';
+		await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
+	}
+
 	public main = async () => {
 		if (this.captchaDetected || this.paused) return;
 
@@ -541,6 +599,7 @@ export class BaseAgent extends Client {
 			if (this.captchaDetected || this.paused) return;
 
 			if (Date.now() - this.lastTime > 15_000) await this.aOrdinary();
+			if (Date.now() - this.votSoTime > 60_000) await this.aVotSo();
 
 			if (command.condition()) await command.action();
 			const delay = ranInt(15000, 22000) / commands.length;

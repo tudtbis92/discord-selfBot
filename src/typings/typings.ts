@@ -78,6 +78,13 @@ export interface Configuration {
     guildID: string
     channelID: string[]
     quoteChannelID?: string[]
+    caucaChannelID?: string
+    bancaChannelID?: string
+    // userNotify?: string
+    // apiUser?: string
+    // apiKey?: string
+    // apiNCAI?: string
+    // cmdPrefix?: string
     wayNotify: Array<"webhook" | "dms" | "call" | "music" | "popup">
     webhookURL?: string
     musicPath?: string
