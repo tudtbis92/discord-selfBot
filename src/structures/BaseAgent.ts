@@ -44,6 +44,7 @@ export class BaseAgent extends Client {
 
 	pnvCauCaId = "1382759060847460402";
 	pnvPrefix = "pnv";
+	private isCauCaRunning: boolean = false;
 
 	private owoCommands = shuffleArray([
 		...Array<string>(5).fill("hunt"),
@@ -579,55 +580,77 @@ export class BaseAgent extends Client {
 	}
 
 	public aCauCa = async () => {
-		const command = 'cauca';
-		let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
-
-		let initialReply: Message;
+		if (this.isCauCaRunning) return;
+		this.isCauCaRunning = true;
 		try {
-			const initialFilter = (msg: Message) =>
-				msg.author.id === this.pnvCauCaId &&
-				msg.reference?.messageId === respond?.id;
-			const collectedReplies = await this.caucaChannel.awaitMessages({
-				filter: initialFilter,
-				max: 1,
-				time: 15_000,
-			});
-			initialReply = collectedReplies.first() as Message;
-		} catch (error) {
-			logger.error("Failed to collect initial reply for cauca: " + error);
-			return;
-		}
+			const command = 'cauca';
+			let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
 
-		try {
-			const filter = (msg: Message) =>
-				msg.author.id === this.pnvCauCaId &&
-				msg.reference?.messageId === respond?.id &&
-				msg.embeds.length > 0 &&
-				Boolean(msg.embeds[0].author?.name?.includes("Cá đã cắn câu")) &&
-				msg.components.length > 0;
-			const collectedMsg = await awaitMessageWithEdits(
-				this,
-				this.caucaChannel as TextChannel,
-				filter,
-				40_000
-			);
+			let initialReply: Message;
+			try {
+				const initialFilter = (msg: Message) =>
+					msg.author.id === this.pnvCauCaId &&
+					msg.reference?.messageId === respond?.id;
+				const collectedReplies = await this.caucaChannel.awaitMessages({
+					filter: initialFilter,
+					max: 1,
+					time: 15_000,
+				});
+				initialReply = collectedReplies.first() as Message;
+			} catch (error) {
+				logger.error("Failed to collect initial reply for cauca: " + error);
+				return;
+			}
 
-			await collectedMsg.clickButton({ X: 0, Y: 0 });
-		} catch (error) {
-			logger.error("Failed to collect message for cauca: " + error);
-			return;
-		}
+			try {
+				const filter = (msg: Message) =>
+					msg.author.id === this.pnvCauCaId &&
+					msg.reference?.messageId === respond?.id &&
+					msg.embeds.length > 0 &&
+					Boolean(msg.embeds[0].author?.name?.includes("Cá đã cắn câu")) &&
+					msg.components.length > 0;
+				const collectedMsg = await awaitMessageWithEdits(
+					this,
+					this.caucaChannel as TextChannel,
+					filter,
+					40_000
+				);
+
+				await collectedMsg.clickButton({ X: 0, Y: 0 });
+				await this.aCauCa();
+			} catch (error) {
+				logger.error("Failed to collect message for cauca: " + error);
+				return;
+			}
+		} finally {
+			logger.info("[Câu Cá] Tác vụ câu cá đã hoàn tất. Sẵn sàng cho lần tiếp theo.");
+        	this.isCauCaRunning = false;
+		}		
 	}
 
 	public main = async () => {		
-		let votSoCheck = Date.now() - this.votSoTime;
-		if (votSoCheck > 60_000) {
-			// console.log(`votSoTime: ${this.votSoTime}, votSoCheck: ${votSoCheck}`);
-			await this.aVotSo();
-		}
+		// Dùng while(true) thay cho đệ quy để an toàn hơn
+		while (true) {
+			// --- Xử lý VotSo (vẫn như cũ) ---
+			let votSoCheck = Date.now() - this.votSoTime;
+			if (votSoCheck > 60_000) {
+				await this.aVotSo();
+			}
 
-		// await this.sleep(ranInt(2000, 5000))
-		this.main();
+			// --- Xử lý Câu Cá ---
+			// Chỉ gọi aCauCa NẾU nó chưa được chạy
+			if (!this.isCauCaRunning) {
+				// Không dùng await để nó chạy trong nền
+				this.aCauCa(); 
+			}
+
+			// --- Các tác vụ khác của bạn có thể thêm vào đây ---
+
+
+			// Thêm một khoảng nghỉ ngắn ở cuối mỗi vòng lặp
+			// để tránh việc CPU hoạt động quá mức
+			await this.sleep(ranInt(2000, 3000));
+		}
 	};
 
 	public run = (config: Configuration) => {
