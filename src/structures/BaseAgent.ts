@@ -602,6 +602,25 @@ export class BaseAgent extends Client {
 				return;
 			}
 
+			const replyEmbed = initialReply.embeds[0];
+			// Lấy nội dung từ title hoặc description của embed để kiểm tra
+			const replyContent = replyEmbed?.author?.name || replyEmbed?.description || "";
+
+			// --- XỬ LÝ LỖI HẾT MỒI ---
+			if (replyContent.includes("Không đủ mồi") || replyContent.includes("không còn mồi")) {
+				logger.warn("[Câu Cá] Phát hiện hết mồi câu, bắt đầu quy trình mua mồi.");
+				await this.aBuyBait();
+				// Sau khi mua mồi, hàm sẽ kết thúc. Vòng lặp main sẽ tự động gọi lại aCauCa để thử câu lại.
+				return;
+			}
+
+			// --- XỬ LÝ LỖI TÚI ĐẦY (VÍ DỤ) ---
+			if (replyContent.includes("đầy túi")) {
+				logger.warn("[Câu Cá] Túi cá đã đầy, cần thực hiện lệnh bán cá.");
+				await this.sendBanCa("banca");
+				return; // Dừng lại để vòng lặp main gọi lại sau
+			}
+
 			try {
 				const filter = (msg: Message) =>
 					msg.author.id === this.pnvCauCaId &&
@@ -626,6 +645,61 @@ export class BaseAgent extends Client {
 			logger.info("[Câu Cá] Tác vụ câu cá đã hoàn tất. Sẵn sàng cho lần tiếp theo.");
         	this.isCauCaRunning = false;
 		}		
+	}
+
+	/**
+	 * Tự động vào shop, kiểm tra xu và mua mồi câu.
+	 * @returns {Promise<boolean>} Trả về true nếu mua mồi thành công, ngược lại false.
+	 */
+	private aBuyBait = async (): Promise<boolean> => {
+		logger.info("[Mua Mồi] Mở cửa hàng...");
+		const shopCommandMsg = await this.sendCauCa('shop', { withPrefix: true, channel: this.caucaChannel });
+		if (!shopCommandMsg) return false;
+
+		try {
+			// Chờ tin nhắn trả lời từ shop
+			const shopReply = await this.caucaChannel.awaitMessages({
+				filter: msg => msg.author.id === this.pnvCauCaId && msg.reference?.messageId === shopCommandMsg.id,
+				max: 1,
+				time: 10_000,
+				errors: ['time']
+			});
+
+			const shopEmbed = shopReply.first()?.embeds[0];
+			if (!shopEmbed?.description) {
+				logger.error("[Mua Mồi] Không thể đọc được thông tin từ cửa hàng.");
+				return false;
+			}
+
+			// Dùng regex để lấy số xu bạc một cách chính xác
+			const coinMatch = shopEmbed.description.match(/Hiện có: ([\d,]+)\s*<:/);
+			if (!coinMatch || !coinMatch[1]) {
+				logger.error("[Mua Mồi] Không tìm thấy số lượng xu bạc trong cửa hàng.");
+				return false;
+			}
+			
+			// Chuyển đổi chuỗi có dấu phẩy thành số
+			const silverCoins = parseInt(coinMatch[1].replace(/,/g, ''), 10);
+			logger.info(`[Mua Mồi] Số xu bạc hiện có: ${silverCoins}`);
+
+			if (silverCoins <= 0) {
+				logger.warn("[Mua Mồi] Đã hết xu bạc để mua mồi!");
+				return false;
+			}
+			
+			// Mua tối đa 50 mồi, hoặc mua bằng đúng số xu nếu không đủ
+			const amountToBuy = Math.min(silverCoins, 50);
+			logger.info(`[Mua Mồi] Tiến hành mua ${amountToBuy} mồi câu (m1)...`);
+			await this.sendCauCa(`buy m1 ${amountToBuy}`, { withPrefix: true, channel: this.caucaChannel });
+			
+			// Chờ một chút để giao dịch hoàn tất
+			await this.sleep(2000);
+			return true;
+
+		} catch (error) {
+			logger.error("[Mua Mồi] Có lỗi xảy ra trong quá trình mua mồi: " + error);
+			return false;
+		}
 	}
 
 	public main = async () => {		
