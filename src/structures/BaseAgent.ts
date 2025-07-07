@@ -599,7 +599,11 @@ export class BaseAgent extends Client {
 			if (this.captchaDetected || this.paused) return;
 
 			if (Date.now() - this.lastTime > 15_000) await this.aOrdinary();
-			if (Date.now() - this.votSoTime > 60_000) await this.aVotSo();
+			let votSoCheck = Date.now() - this.votSoTime;
+			if (votSoCheck > 60_000) {
+				console.log(`votSoTime: ${this.votSoTime}, votSoCheck: ${votSoCheck}`);
+				await this.aVotSo();
+			}
 
 			if (command.condition()) await command.action();
 			const delay = ranInt(15000, 22000) / commands.length;
