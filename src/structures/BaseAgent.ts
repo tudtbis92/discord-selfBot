@@ -534,6 +534,7 @@ export class BaseAgent extends Client {
 	public aVotSo = async () => {
 		const command = 'votso';
 		await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
+		this.votSoTime = Date.now();
 	}
 
 	public main = async () => {
