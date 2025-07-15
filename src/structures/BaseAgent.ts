@@ -43,7 +43,7 @@ export class BaseAgent extends Client {
 	prefix = "owo";
 
 	pnvCauCaId = "1382759060847460402";
-	pnvPrefix = "pnv";
+	pnvPrefix = "fs";
 	private isCauCaRunning: boolean = false;
 	private isNhiemVuRunning: boolean = false;
 	private lastNhiemVuTime: number = 0;
@@ -854,8 +854,27 @@ export class BaseAgent extends Client {
 
 	public main = async () => {		
 		const resetHours = [0, 6, 12, 18];
+		// Thời gian bắt đầu thực hiện tác vụ: 19h15' ngày 17.05.2025 GMT+7
+		const startTime = new Date('2025-05-17T19:15:00+07:00').getTime();
+		
 		// Dùng while(true) thay cho đệ quy để an toàn hơn
 		while (true) {
+			const currentTime = Date.now();
+			
+			// Kiểm tra xem đã đến thời gian bắt đầu chưa
+			if (currentTime < startTime) {
+				const remainingTime = startTime - currentTime;
+				const remainingHours = Math.floor(remainingTime / (1000 * 60 * 60));
+				const remainingMinutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+				const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+				
+				logger.info(`[Chờ] Bot đang chờ đến 19h15' ngày 17.05.2025 GMT+7. Còn lại: ${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s`);
+				
+				// Chờ 30 giây trước khi kiểm tra lại
+				await this.sleep(30000);
+				continue;
+			}
+			
 			// --- Xử lý VotSo (vẫn như cũ) ---
 			let votSoCheck = Date.now() - this.votSoTime;
 			if (votSoCheck > 60_000) {
