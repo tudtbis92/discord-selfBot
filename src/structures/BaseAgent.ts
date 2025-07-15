@@ -855,7 +855,7 @@ export class BaseAgent extends Client {
 	public main = async () => {		
 		const resetHours = [0, 6, 12, 18];
 		// Thời gian bắt đầu thực hiện tác vụ: 19h15' ngày 17.05.2025 GMT+7
-		const startTime = new Date('2025-05-17T19:15:00+07:00').getTime();
+		const startTime = new Date('2025-07-15T19:15:00+07:00').getTime();
 		
 		// Dùng while(true) thay cho đệ quy để an toàn hơn
 		while (true) {
