@@ -868,7 +868,7 @@ export class BaseAgent extends Client {
 				const remainingMinutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
 				const remainingSeconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
 				
-				logger.info(`[Chờ] Bot đang chờ đến 19h15' ngày 17.05.2025 GMT+7. Còn lại: ${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s`);
+				logger.info(`[Chờ] Bot đang chờ đến 19h15' ngày 15.07.2025 GMT+7. Còn lại: ${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s`);
 				
 				// Chờ 30 giây trước khi kiểm tra lại
 				await this.sleep(30000);
