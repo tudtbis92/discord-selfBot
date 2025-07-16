@@ -4,11 +4,11 @@ import { logger } from "../utils/logger.js";
 const listvCommand: Commands = {
     name: "listv",
     description: "Liệt kê tất cả voice channels từ các server. Sử dụng: listv hoặc listv <guildId>",
-    execute: async (agent, message, args) => {
+    execute: async (agent, message, ...args) => {
         try {
             let guildsToCheck: any[] = [];
             
-            if (args[0]) {
+            if (args && args.length > 0 && args[0]) {
                 // Nếu có guildId cụ thể
                 const guild = agent.guilds.cache.get(args[0]);
                 if (!guild) {
@@ -20,17 +20,29 @@ const listvCommand: Commands = {
                 guildsToCheck = Array.from(agent.guilds.cache.values());
             }
 
+            logger.info(`[ListV] Tìm thấy ${guildsToCheck.length} servers để kiểm tra`);
+
+            if (guildsToCheck.length === 0) {
+                return message.reply("❌ Bot không có mặt trong server nào!");
+            }
+
             let voiceChannelsList = "";
             let totalChannels = 0;
 
             for (const guild of guildsToCheck) {
                 try {
+                    logger.debug(`[ListV] Đang kiểm tra server: ${guild.name} (${guild.id})`);
+                    
                     // Fetch channels của guild
                     await guild.channels.fetch();
+                    
+                    logger.debug(`[ListV] Đã fetch ${guild.channels.cache.size} channels từ ${guild.name}`);
                     
                     const voiceChannels = guild.channels.cache.filter(
                         (channel: any) => channel.type === "GUILD_VOICE"
                     );
+
+                    logger.debug(`[ListV] Tìm thấy ${voiceChannels.size} voice channels trong ${guild.name}`);
 
                     if (voiceChannels.size > 0) {
                         voiceChannelsList += `\n**${guild.name}** (${guild.id}):\n`;
@@ -41,7 +53,7 @@ const listvCommand: Commands = {
                         });
                     }
                 } catch (error) {
-                    logger.debug(`[ListV] Không thể fetch channels từ server ${guild.name}: ${error}`);
+                    logger.error(`[ListV] Không thể fetch channels từ server ${guild.name}: ${error}`);
                 }
             }
 

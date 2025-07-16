@@ -4,10 +4,10 @@ import { logger } from "../utils/logger.js";
 const joinvCommand: Commands = {
     name: "joinv",
     description: "Join bot vào kênh voice được chỉ định. Sử dụng: joinv <channelId> hoặc joinv <guildId> <channelId>",
-    execute: async (agent, message, args) => {
+    execute: async (agent, message, ...args) => {
         try {
             // Kiểm tra xem có cung cấp channelVoiceId không
-            if (!args[0]) {
+            if (!args || args.length === 0 || !args[0]) {
                 return message.reply("❌ Vui lòng cung cấp ID của kênh voice!\n" +
                     "Sử dụng: `joinv <channelId>` hoặc `joinv <guildId> <channelId>`");
             }
@@ -17,7 +17,7 @@ const joinvCommand: Commands = {
             let channelId: string;
 
             // Kiểm tra có 2 tham số không (guildId và channelId)
-            if (args[1]) {
+            if (args.length > 1 && args[1]) {
                 guildId = args[0];
                 channelId = args[1];
                 

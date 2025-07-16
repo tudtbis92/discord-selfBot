@@ -4,7 +4,7 @@ import { logger } from "../utils/logger.js";
 const leavevCommand: Commands = {
     name: "leavev",
     description: "Rời khỏi kênh voice hiện tại",
-    execute: async (agent, message, args) => {
+    execute: async (agent, message, ...args) => {
         try {
             // Kiểm tra xem bot có đang trong voice channel không
             if (!agent.voice.connection) {

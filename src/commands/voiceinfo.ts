@@ -4,7 +4,7 @@ import { logger } from "../utils/logger.js";
 const voiceinfoCommand: Commands = {
     name: "voiceinfo",
     description: "Hiển thị thông tin về kết nối voice hiện tại",
-    execute: async (agent, message, args) => {
+    execute: async (agent, message, ...args) => {
         try {
             // Kiểm tra xem bot có đang trong voice channel không
             if (!agent.voice.connection) {
