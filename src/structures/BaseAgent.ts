@@ -47,6 +47,7 @@ export class BaseAgent extends Client {
 	private isCauCaRunning: boolean = false;
 	private isNhiemVuRunning: boolean = false;
 	private lastNhiemVuTime: number = 0;
+	public defaultBait: string = "m1";
 
 	private owoCommands = shuffleArray([
 		...Array<string>(5).fill("hunt"),
@@ -782,8 +783,33 @@ export class BaseAgent extends Client {
 			
 			// Mua tối đa 50 mồi, hoặc mua bằng đúng số xu nếu không đủ
 			const amountToBuy = Math.min(silverCoins, 50);
-			logger.info(`[Mua Mồi] Tiến hành mua ${amountToBuy} mồi câu (m1)...`);
-			await this.sendCauCa(`buy m1 ${amountToBuy}`, { withPrefix: true, channel: this.caucaChannel });
+			logger.info(`[Mua Mồi] Tiến hành mua ${amountToBuy} mồi câu (${this.defaultBait})...`);
+			const buyCommandMsg = await this.sendCauCa(`buy ${this.defaultBait} ${amountToBuy}`, { withPrefix: true, channel: this.caucaChannel });
+			
+			// Nếu không phải mồi m1, chờ tin nhắn thanh toán và chọn button đầu tiên
+			if (this.defaultBait !== "m1" && buyCommandMsg) {
+				try {
+					logger.info(`[Mua Mồi] Chờ tin nhắn thanh toán cho ${this.defaultBait}...`);
+					const paymentReply = await this.caucaChannel.awaitMessages({
+						filter: msg => msg.author.id === this.pnvCauCaId && 
+									   msg.reference?.messageId === buyCommandMsg.id &&
+									   msg.components.length > 0,
+						max: 1,
+						time: 10_000,
+						errors: ['time']
+					});
+
+					const paymentMsg = paymentReply.first();
+					if (paymentMsg && paymentMsg.components.length > 0 && paymentMsg.components[0].components.length > 0) {
+						logger.info("[Mua Mồi] Chọn phương thức thanh toán đầu tiên...");
+						await this.sleep(ranInt(500, 1000));
+						await paymentMsg.clickButton({ X: 0, Y: 0 });
+						logger.info("[Mua Mồi] Đã chọn phương thức thanh toán.");
+					}
+				} catch (error) {
+					logger.warn(`[Mua Mồi] Không nhận được tin nhắn thanh toán hoặc có lỗi: ${error}`);
+				}
+			}
 			
 			// Chờ một chút để giao dịch hoàn tất
 			await this.sleep(2000);
@@ -849,6 +875,18 @@ export class BaseAgent extends Client {
 			this.lastNhiemVuTime = Date.now();
 			this.isNhiemVuRunning = false;
 			logger.info("[Nhiệm Vụ] Kiểm tra nhiệm vụ hoàn tất.");
+		}
+	}
+
+	public setBait = (baitType: string) => {
+		const validBaits = ["m1", "m2", "m3", "m4", "m5"]; // Danh sách mồi hợp lệ
+		if (validBaits.includes(baitType)) {
+			this.defaultBait = baitType;
+			logger.info(`[Set Bait] Đã cập nhật loại mồi mặc định thành: ${baitType}`);
+			return true;
+		} else {
+			logger.error(`[Set Bait] Loại mồi không hợp lệ: ${baitType}. Các loại mồi hợp lệ: ${validBaits.join(", ")}`);
+			return false;
 		}
 	}
 
