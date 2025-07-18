@@ -805,9 +805,32 @@ export class BaseAgent extends Client {
 						await this.sleep(ranInt(500, 1000));
 						await paymentMsg.clickButton({ X: 0, Y: 0 });
 						logger.info("[Mua Mồi] Đã chọn phương thức thanh toán.");
+
+						// Chờ kết quả thanh toán và kiểm tra có bị edit thành "Giao dịch thất bại" không
+						try {
+							logger.info("[Mua Mồi] Chờ kết quả giao dịch...");
+							await this.sleep(3000); // Chờ 3 giây để message có thể bị edit
+
+							// Fetch lại tin nhắn để kiểm tra nội dung đã được edit
+							const updatedPaymentMsg = await this.caucaChannel.messages.fetch(paymentMsg.id);
+							const messageContent = updatedPaymentMsg.content || "";
+							const embedContent = updatedPaymentMsg.embeds[0]?.description || "";
+
+							if (messageContent.includes("Giao dịch thất bại") || embedContent.includes("Giao dịch thất bại")) {
+								logger.error("[Mua Mồi] Phát hiện giao dịch thất bại! Tiến hành bán cá để lấy xu...");
+								await this.sendBanCa("banca", { withPrefix: true, channel: this.bancaChannel });
+							} else {
+								logger.info("[Mua Mồi] Giao dịch thành công!");
+							}
+						} catch (fetchError) {
+							logger.warn(`[Mua Mồi] Không thể kiểm tra kết quả giao dịch: ${fetchError}`);
+						}
 					}
 				} catch (error) {
 					logger.warn(`[Mua Mồi] Không nhận được tin nhắn thanh toán hoặc có lỗi: ${error}`);
+					// Nếu có lỗi trong quá trình thanh toán, cũng thử bán cá
+					logger.info("[Mua Mồi] Do có lỗi thanh toán, tiến hành bán cá để lấy xu...");
+					await this.sendBanCa("banca", { withPrefix: true, channel: this.bancaChannel });
 				}
 			}
 			
