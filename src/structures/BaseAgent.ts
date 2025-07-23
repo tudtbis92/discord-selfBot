@@ -44,10 +44,11 @@ export class BaseAgent extends Client {
 
 	pnvCauCaId = "1293109493948878929";
 	pnvPrefix = "fs";
-	private isCauCaRunning: boolean = false;
-	private isNhiemVuRunning: boolean = false;
+	public isCauCaRunning: boolean = false;
+	public isNhiemVuRunning: boolean = false;
 	private lastNhiemVuTime: number = 0;
 	public defaultBait: string = "m1";
+	public speedMode: "turbo" | "normal" | "slow" = "normal";
 
 	private owoCommands = shuffleArray([
 		...Array<string>(5).fill("hunt"),
@@ -505,9 +506,25 @@ export class BaseAgent extends Client {
 		{
 			withPrefix = true,
 			channel = this.caucaChannel,
-			delay = ranInt(120, 1600),
+			delay,
 		}: SendOptions = {}
 	): Promise<Message | undefined> => {
+		// Động delay dựa trên speedMode nếu không được chỉ định
+		if (delay === undefined) {
+			switch (this.speedMode) {
+				case "turbo":
+					delay = ranInt(10, 50);
+					break;
+				case "normal":
+					delay = ranInt(50, 150);
+					break;
+				case "slow":
+					delay = ranInt(200, 500);
+					break;
+			}
+		}
+		
+		if (delay) await this.sleep(delay);
 		if (withPrefix) message = [this.pnvPrefix, message].join(" ");
 		try {
 			// Gửi tin nhắn và return đối tượng Message nhận được
@@ -632,7 +649,16 @@ export class BaseAgent extends Client {
 		this.isCauCaRunning = true;
 		try {
 			const command = 'cauca';
-			let respond = await this.sendCauCa(command, { withPrefix: true, channel: this.caucaChannel });
+			// Gửi lệnh cauca với delay dựa trên speedMode
+			let respond = await this.sendCauCa(command, { 
+				withPrefix: true, 
+				channel: this.caucaChannel, 
+				delay: this.speedMode === "turbo" ? 0 : undefined 
+			});
+
+			// Timeout dựa trên speedMode
+			const initialTimeout = this.speedMode === "turbo" ? 8_000 : 
+								   this.speedMode === "normal" ? 10_000 : 15_000;
 
 			let initialReply: Message;
 			try {
@@ -642,7 +668,7 @@ export class BaseAgent extends Client {
 				const collectedReplies = await this.caucaChannel.awaitMessages({
 					filter: initialFilter,
 					max: 1,
-					time: 15_000,
+					time: initialTimeout,
 				});
 				initialReply = collectedReplies.first() as Message;
 			} catch (error) {
@@ -676,46 +702,18 @@ export class BaseAgent extends Client {
 					msg.embeds.length > 0 &&
 					Boolean(msg.embeds[0].author?.name?.includes("Cá đã cắn câu")) &&
 					msg.components.length > 0;
+				
+				// Timeout dựa trên speedMode
+				const hookTimeout = this.speedMode === "turbo" ? 20_000 : 
+								   this.speedMode === "normal" ? 30_000 : 40_000;
+				
 				const collectedMsg = await awaitMessageWithEdits(
 					this,
 					this.caucaChannel as TextChannel,
 					filter,
-					40_000
+					hookTimeout
 				);
 
-				// let successBtnPos: { X: number; Y: number } | null = null;
-				// const otherBtnPositions: { X: number; Y: number }[] = [];
-				// collectedMsg.components.forEach((row, y) => {
-				// 	row.components.forEach((button, x) => {
-				// 		if (button.customId?.includes('success')) {
-				// 			successBtnPos = { X: x, Y: y };
-				// 		} else {
-				// 			otherBtnPositions.push({ X: x, Y: y });
-				// 		}
-				// 	});
-				// });
-
-				// if (!successBtnPos) {
-				// 	logger.error("[Câu Cá] Không tìm thấy nút 'success' để giật cần.");
-				// 	return;
-				// }
-				// const isSuccessClick = Math.random() < 0.8;
-				// let targetPosition: { X: number; Y: number };
-
-				// if (isSuccessClick || otherBtnPositions.length === 0) {
-				// 	// Click nút thành công nếu:
-				// 	// - Rơi vào 80% may mắn
-				// 	// - Hoặc không có nút nào khác để mà bấm trật
-				// 	targetPosition = successBtnPos;
-				// 	logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Thành công)...");
-				// } else {
-				// 	// Click vào một nút ngẫu nhiên khác để "câu trật"
-				// 	targetPosition = otherBtnPositions[Math.floor(Math.random() * otherBtnPositions.length)];
-				// 	logger.warn("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Cố tình trật)...");
-				// }
-
-				// await collectedMsg.clickButton(targetPosition);
-				
 				// Nếu không có nút nào, báo lỗi và thoát
 				if (collectedMsg.components.length === 0 || collectedMsg.components[0].components.length === 0) {
 					logger.error("[Câu Cá] Không tìm thấy bất kỳ nút nào để giật cần.");
@@ -724,10 +722,12 @@ export class BaseAgent extends Client {
 				
 				logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Luôn chọn nút đầu tiên)...");
 
-				// Thực hiện click vào nút ở vị trí đầu tiên (Hàng 0, Cột 0)
-				await this.sleep(ranInt(300, 800));
+				// Delay click dựa trên speedMode
+				const clickDelay = this.speedMode === "turbo" ? ranInt(50, 150) : 
+								  this.speedMode === "normal" ? ranInt(100, 300) : ranInt(300, 600);
+				
+				await this.sleep(clickDelay);
 				await collectedMsg.clickButton({ X: 0, Y: 0 });
-				// await this.aCauCa();
 			} catch (error) {
 				logger.error("Failed to collect message for cauca: " + error);
 				return;
@@ -735,7 +735,8 @@ export class BaseAgent extends Client {
 		} finally {
 			logger.info("[Câu Cá] Tác vụ câu cá đã hoàn tất. Sẵn sàng cho lần tiếp theo.");
         	this.isCauCaRunning = false;
-			await this.aCauCa();
+			// Gọi lại ngay lập tức mà không await để tăng tốc
+			setImmediate(() => this.aCauCa());
 		}		
 	}
 
@@ -987,9 +988,11 @@ export class BaseAgent extends Client {
 			// --- Các tác vụ khác của bạn có thể thêm vào đây ---
 
 
-			// Thêm một khoảng nghỉ ngắn ở cuối mỗi vòng lặp
+			// Thêm một khoảng nghỉ ngắn ở cuối mỗi vòng lặp dựa trên speedMode
 			// để tránh việc CPU hoạt động quá mức
-			await this.sleep(ranInt(1000, 1500));
+			const loopDelay = this.speedMode === "turbo" ? ranInt(200, 400) : 
+							  this.speedMode === "normal" ? ranInt(500, 800) : ranInt(1000, 1500);
+			await this.sleep(loopDelay);
 		}
 	};
 
