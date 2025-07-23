@@ -735,6 +735,7 @@ export class BaseAgent extends Client {
 		} finally {
 			logger.info("[Câu Cá] Tác vụ câu cá đã hoàn tất. Sẵn sàng cho lần tiếp theo.");
         	this.isCauCaRunning = false;
+			await this.aCauCa();
 		}		
 	}
 
