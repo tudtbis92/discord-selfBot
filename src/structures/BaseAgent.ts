@@ -23,6 +23,7 @@ import { dmsHandler } from "../handler/dmsHandler.js";
 import { loadSweeper } from "../feats/sweeper.js";
 import { getQuestReward, processQuestLogs } from "../feats/quest.js";
 import { awaitMessageWithEdits } from "../utils/messageUtils.js";
+import { AutoChatManager } from "../feats/autoChat.js";
 
 export class BaseAgent extends Client {
 	public config!: Configuration;
@@ -31,6 +32,7 @@ export class BaseAgent extends Client {
 	public quoteChannel!: TextChannel;
 	public caucaChannel!: TextChannel;
 	public bancaChannel!: TextChannel;
+	public autoChatManager?: AutoChatManager;
 
 	totalCommands = 0;
 	totalTexts = 0;
@@ -113,6 +115,12 @@ export class BaseAgent extends Client {
 				this.bancaChannel = this.channels.cache.get(
 					this.config.bancaChannelID
 				) as TextChannel;
+			}
+
+			// Khởi tạo Auto Chat Manager
+			if (this.config.autoChat) {
+				this.autoChatManager = new AutoChatManager(this);
+				logger.info("[AutoChat] Đã khởi tạo Auto Chat Manager");
 			}			
 
 			logger.info(`Loaded ${this.commands.size} commands`);
@@ -987,6 +995,10 @@ export class BaseAgent extends Client {
 
 			// --- Các tác vụ khác của bạn có thể thêm vào đây ---
 
+			// --- Xử lý Auto Chat ---
+			if (this.autoChatManager) {
+				await this.autoChatManager.checkAndSendRandomChat();
+			}
 
 			// Thêm một khoảng nghỉ ngắn ở cuối mỗi vòng lặp dựa trên speedMode
 			// để tránh việc CPU hoạt động quá mức

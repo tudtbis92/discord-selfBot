@@ -69,7 +69,11 @@ export const defaultConfig: Configuration = {
     autoSleep: true,
     autoReload: true,
     autoResume: true,
-    showRPC: true
+    showRPC: true,
+    
+    // Auto Chat mặc định
+    autoChat: false,
+    autoChatInterval: 4 // 4 phút
 }
 
 export interface Configuration {
@@ -107,6 +111,11 @@ export interface Configuration {
     autoReload: boolean
     autoResume: boolean
     showRPC: boolean
+    
+    // Auto Chat với Gemini AI
+    autoChatChannelID?: string
+    autoChat?: boolean
+    autoChatInterval?: number // phút
 }
 // export interface Configuration {
 //     tag: string

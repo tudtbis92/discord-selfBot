@@ -39,6 +39,7 @@
   },
   "homepage": "https://github.com/Kyou-Izumi/advanced-discord-owo-tool-farm#readme",
   "dependencies": {
+    "@google/genai": "^1.10.0",
     "@inquirer/core": "^9.2.1",
     "@inquirer/prompts": "^7.1.0",
     "2captcha": "^3.0.5-2",
