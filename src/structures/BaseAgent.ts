@@ -725,9 +725,9 @@ export class BaseAgent extends Client {
 				logger.info("[Câu Cá] Cá đã cắn câu! Chuẩn bị giật (Luôn chọn nút đầu tiên)...");
 
 				// Thực hiện click vào nút ở vị trí đầu tiên (Hàng 0, Cột 0)
-				await this.sleep(ranInt(300, 800));
+				// await this.sleep(ranInt(300, 800));
 				await collectedMsg.clickButton({ X: 0, Y: 0 });
-				await this.aCauCa();
+				// await this.aCauCa();
 			} catch (error) {
 				logger.error("Failed to collect message for cauca: " + error);
 				return;
@@ -988,7 +988,7 @@ export class BaseAgent extends Client {
 
 			// Thêm một khoảng nghỉ ngắn ở cuối mỗi vòng lặp
 			// để tránh việc CPU hoạt động quá mức
-			await this.sleep(ranInt(2000, 3000));
+			// await this.sleep(ranInt(2000, 3000));
 		}
 	};
 
