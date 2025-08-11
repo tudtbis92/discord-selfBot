@@ -15,7 +15,7 @@ export class AutoChatManager {
         "Mọi người ơi, mình mới đọc đến chap mới của truyện tu tiên, twist quá!",
         "Có ai biết làm sao để tăng linh khí không? Newbie cần tips nè",
         "Sư huynh sư tỷ nào có kinh nghiệm về đan dược không? Share với mình đi!",
-        "Thái Cổ Thánh Địa này view đẹp ghê, ai cũng feel peaceful không?",
+        "Đại Mộng Ảo Giới này view đẹp ghê, ai cũng feel peaceful không?",
         "Vừa breakthrough tầng mới rồi! Excited quá, ai cũng chúc mừng mình đi ⚡",
         "Đêm nay trăng tròn, perfect để tu luyện! Ai join mình ngồi thiền không?",
         "Mình thấy có spiritual energy mạnh ở đây, newbie nào cũng cảm nhận được không?",
@@ -184,7 +184,7 @@ export class AutoChatManager {
                 prompt = this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
             } else {
                 // 50% yêu cầu Gemini tạo chủ đề mới dựa trên context cuộc trò chuyện
-                const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Thái Cổ Thánh Địa". 
+                const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Đại Mộng Ảo Giới". 
 
 ${conversationContext ? `Nội dung cuộc trò chuyện gần đây:\n${conversationContext}\n\n` : ''}
 
