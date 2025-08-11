@@ -77,6 +77,10 @@ export class AutoChatManager {
             // Thêm delay ngẫu nhiên để tự nhiên hơn
             await this.agent.sleep(ranInt(1000, 3000));
 
+            // Lấy context cuộc trò chuyện gần đây
+            const recentMessages = await this.getRecentMessages(10);
+            const conversationContext = this.buildConversationContext(recentMessages);
+
             // Lấy nội dung tin nhắn, loại bỏ mention
             let messageContent = message.content;
             if (message.mentions.users.has(this.agent.user?.id!)) {
@@ -87,8 +91,13 @@ export class AutoChatManager {
                 messageContent = "Bạn vừa mention mình nhưng không nói gì cả. Có chuyện gì thế?";
             }
 
+            // Tạo prompt với context cho Gemini
+            const contextualPrompt = conversationContext 
+                ? `Nội dung cuộc trò chuyện gần đây:\n${conversationContext}\n\nTin nhắn hiện tại từ ${message.author.displayName || message.author.username}: ${messageContent}`
+                : messageContent;
+
             // Gọi Gemini để tạo phản hồi với delay
-            const response = await safeDiscordBotChatWithDelay(message.author.id, messageContent);
+            const response = await safeDiscordBotChatWithDelay(message.author.id, contextualPrompt);
             
             if (response.success && response.data) {
                 // Gửi từng tin nhắn với delay đã được tính toán
@@ -127,7 +136,20 @@ export class AutoChatManager {
         if (this.isProcessingMention) return; // Không gửi random chat khi đang xử lý mention
 
         try {
+            logger.info("[AutoChat] Đang kiểm tra tin nhắn mới nhất...");
+
+            // Kiểm tra tin nhắn mới nhất trong channel
+            const lastMessage = await this.getLastMessage();
+            if (lastMessage && lastMessage.author.id === this.agent.user?.id) {
+                logger.info("[AutoChat] Tin nhắn mới nhất là của mình, bỏ qua auto chat");
+                return;
+            }
+
             logger.info("[AutoChat] Đang tạo tin nhắn ngẫu nhiên...");
+
+            // Lấy 10 tin nhắn mới nhất để hiểu nội dung cuộc trò chuyện
+            const recentMessages = await this.getRecentMessages(10);
+            const conversationContext = this.buildConversationContext(recentMessages);
 
             // Chọn chủ đề ngẫu nhiên hoặc yêu cầu Gemini tạo
             let prompt: string;
@@ -136,10 +158,12 @@ export class AutoChatManager {
                 // 50% dùng chủ đề có sẵn
                 prompt = this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
             } else {
-                // 50% yêu cầu Gemini tạo chủ đề mới
+                // 50% yêu cầu Gemini tạo chủ đề mới dựa trên context cuộc trò chuyện
                 const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Thái Cổ Thánh Địa". 
-                
-Tạo một câu mở đầu cuộc trò chuyện ngẫu nhiên với style như sau:
+
+${conversationContext ? `Nội dung cuộc trò chuyện gần đây:\n${conversationContext}\n\n` : ''}
+
+Tạo một câu mở đầu cuộc trò chuyện ${conversationContext ? 'phù hợp với ngữ cảnh trên' : 'ngẫu nhiên'} với style như sau:
 - Ngôn ngữ gen Z, thân thiện và tò mò
 - Dùng emoji �✨🌟�⚡��
 - Có thể về: tu tiên, cultivation, linh khí, đan dược, breakthrough, thiền định, truyện tu tiên, thế giới tu tiên
@@ -147,6 +171,7 @@ Tạo một câu mở đầu cuộc trò chuyện ngẫu nhiên với style như
 - Dùng "mình" thay vì "tôi"
 - Ngắn gọn 1-2 câu thôi
 - Thỉnh thoảng dùng từ như "đạo hữu", "sư huynh", "sư tỷ"
+${conversationContext ? '- Nếu có cuộc trò chuyện gần đây, hãy tham khảo và tạo câu chat phù hợp, có thể comment hoặc hỏi thêm về chủ đề đó' : ''}
 
 Ví dụ style: "Đạo hữu nào có experience về breakthrough không? Mình đang stuck ở tầng này nè 🌟�"
 
@@ -204,6 +229,52 @@ Chỉ trả về nội dung tin nhắn, không giải thích.`;
     public setAutoChatInterval(minutes: number) {
         this.agent.config.autoChatInterval = minutes;
         logger.info(`[AutoChat] Đã đặt interval thành ${minutes} phút`);
+    }
+
+    // Method để lấy tin nhắn mới nhất trong channel
+    private async getLastMessage(): Promise<Message | null> {
+        if (!this.autoChatChannel) return null;
+        
+        try {
+            const messages = await this.autoChatChannel.messages.fetch({ limit: 1 });
+            return messages.first() || null;
+        } catch (error) {
+            logger.error(`[AutoChat] Lỗi khi lấy tin nhắn mới nhất: ${error}`);
+            return null;
+        }
+    }
+
+    // Method để lấy tin nhắn gần đây
+    private async getRecentMessages(limit: number = 10): Promise<Message[]> {
+        if (!this.autoChatChannel) return [];
+        
+        try {
+            const messages = await this.autoChatChannel.messages.fetch({ limit });
+            return Array.from(messages.values()).reverse(); // Sắp xếp theo thời gian tăng dần
+        } catch (error) {
+            logger.error(`[AutoChat] Lỗi khi lấy tin nhắn gần đây: ${error}`);
+            return [];
+        }
+    }
+
+    // Method để xây dựng context cuộc trò chuyện
+    private buildConversationContext(messages: Message[]): string {
+        if (!messages.length) return '';
+
+        const contextMessages = messages
+            .filter(msg => !msg.author.bot && msg.content.trim().length > 0) // Lọc bot và tin nhắn rỗng
+            .slice(-5) // Chỉ lấy 5 tin nhắn gần nhất
+            .map(msg => {
+                const username = msg.author.displayName || msg.author.username;
+                const content = msg.content.length > 100 
+                    ? msg.content.substring(0, 100) + '...' 
+                    : msg.content;
+                return `${username}: ${content}`;
+            });
+
+        return contextMessages.length > 0 
+            ? contextMessages.join('\n') 
+            : '';
     }
 
     // Method để lấy thống kê
