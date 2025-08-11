@@ -8,6 +8,8 @@ export class AutoChatManager {
     private agent: BaseAgent;
     private autoChatChannel?: TextChannel;
     private lastChatTime: number = 0;
+    private lastBotMessageCheckTime: number = 0; // Thời gian kiểm tra cuối khi tin nhắn mới nhất là của bot
+    private botMessageDelayTime: number = 0; // Thời gian delay khi tin nhắn mới nhất là của bot
     private isProcessingMention: boolean = false;
     private randomChatTopics: string[] = [
         "Mọi người ơi, mình mới đọc đến chap mới của truyện tu tiên, twist quá! �✨",
@@ -136,13 +138,36 @@ export class AutoChatManager {
         if (this.isProcessingMention) return; // Không gửi random chat khi đang xử lý mention
 
         try {
-            logger.info("[AutoChat] Đang kiểm tra tin nhắn mới nhất...");
+            const now = Date.now();
+            
+            // Kiểm tra nếu đang trong thời gian delay do tin nhắn mới nhất là của bot
+            if (this.botMessageDelayTime > 0 && now < this.botMessageDelayTime) {
+                const remainingMinutes = Math.ceil((this.botMessageDelayTime - now) / 60000);
+                logger.debug(`[AutoChat] Đang delay ${remainingMinutes} phút nữa do tin nhắn mới nhất là của bot`);
+                return;
+            }
+
+            logger.debug("[AutoChat] Đang kiểm tra tin nhắn mới nhất...");
 
             // Kiểm tra tin nhắn mới nhất trong channel
             const lastMessage = await this.getLastMessage();
             if (lastMessage && lastMessage.author.id === this.agent.user?.id) {
-                logger.info("[AutoChat] Tin nhắn mới nhất là của mình, bỏ qua auto chat");
+                // Nếu lần kiểm tra trước đó cũng là tin nhắn của bot và chưa quá 1 phút
+                if (this.lastBotMessageCheckTime > 0 && now - this.lastBotMessageCheckTime < 60000) {
+                    // Đặt delay 3-5 phút
+                    const delayMinutes = ranInt(3, 6); // 3-5 phút
+                    this.botMessageDelayTime = now + (delayMinutes * 60 * 1000);
+                    logger.info(`[AutoChat] Tin nhắn mới nhất vẫn là của bot, delay ${delayMinutes} phút`);
+                } else {
+                    // Lần đầu phát hiện hoặc đã qua 1 phút, chỉ ghi nhận thời gian
+                    this.lastBotMessageCheckTime = now;
+                    logger.debug("[AutoChat] Tin nhắn mới nhất là của bot, ghi nhận thời gian kiểm tra");
+                }
                 return;
+            } else {
+                // Reset thời gian kiểm tra và delay khi có tin nhắn của người khác
+                this.lastBotMessageCheckTime = 0;
+                this.botMessageDelayTime = 0;
             }
 
             logger.info("[AutoChat] Đang tạo tin nhắn ngẫu nhiên...");
@@ -279,13 +304,22 @@ Chỉ trả về nội dung tin nhắn, không giải thích.`;
 
     // Method để lấy thống kê
     public getStats() {
+        const now = Date.now();
+        const nextChatTime = this.lastChatTime + ((this.agent.config.autoChatInterval || 4) * 60 * 1000);
+        const timeUntilNextChat = Math.max(0, nextChatTime - now);
+        
+        // Kiểm tra delay do tin nhắn bot
+        const botDelayRemaining = this.botMessageDelayTime > 0 ? Math.max(0, this.botMessageDelayTime - now) : 0;
+        
         return {
             enabled: this.agent.config.autoChat,
             channel: this.autoChatChannel?.name,
             interval: this.agent.config.autoChatInterval,
             lastChatTime: this.lastChatTime,
-            timeUntilNextChat: this.lastChatTime + ((this.agent.config.autoChatInterval || 4) * 60 * 1000) - Date.now(),
-            isProcessingMention: this.isProcessingMention
+            timeUntilNextChat: botDelayRemaining > 0 ? botDelayRemaining : timeUntilNextChat,
+            isProcessingMention: this.isProcessingMention,
+            isBotMessageDelay: botDelayRemaining > 0,
+            botDelayRemaining: botDelayRemaining
         };
     }
 }
