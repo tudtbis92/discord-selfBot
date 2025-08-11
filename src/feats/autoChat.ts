@@ -137,7 +137,7 @@ export class AutoChatManager {
                 prompt = this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
             } else {
                 // 50% yêu cầu Gemini tạo chủ đề mới
-                const geminiPrompt = `Bạn là Trân, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Thái Cổ Thánh Địa". 
+                const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Thái Cổ Thánh Địa". 
                 
 Tạo một câu mở đầu cuộc trò chuyện ngẫu nhiên với style như sau:
 - Ngôn ngữ gen Z, thân thiện và tò mò
