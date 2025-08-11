@@ -11,18 +11,6 @@ export class AutoChatManager {
     private lastBotMessageCheckTime: number = 0; // Thời gian kiểm tra cuối khi tin nhắn mới nhất là của bot
     private botMessageDelayTime: number = 0; // Thời gian delay khi tin nhắn mới nhất là của bot
     private isProcessingMention: boolean = false;
-    private randomChatTopics: string[] = [
-        "Ae ơi, vừa thấy một meme cute quá! Có ai muốn xem không?",
-        "Mọi người có waifu yêu thích nào không? Share với mình đi!",
-        "Mình vừa vẽ xong một bức tranh anime, cảm giác accomplished quá!",
-        "Làng Mèo này vibe chill ghê, perfect để spam và chill với ae!",
-        "Vừa chụp một tấm ảnh đẹp, ai muốn xem mình share luôn ⚡",
-        "Buổi tối rồi, perfect để share art và ngắm anime! Ai cùng vibe không?",
-        "Mình thấy có nhiều talent artist ở đây, newbie nào cũng inspire được không?",
-        "Có ai pro về digital art không? Share tips với mình đi!",
-        "Server này atmosphere friendly quá, khác hẳn các nơi khác! Love it",
-        "Weekend rồi, ai có plan gì về drawing hay xem anime không? Share đi ae!"
-    ];
 
     constructor(agent: BaseAgent) {
         this.agent = agent;
@@ -176,22 +164,17 @@ export class AutoChatManager {
             const recentMessages = await this.getRecentMessages(10);
             const conversationContext = this.buildConversationContext(recentMessages);
 
-            // Chọn chủ đề ngẫu nhiên hoặc yêu cầu Gemini tạo
+            // Yêu cầu Gemini tạo chủ đề dựa trên context cuộc trò chuyện
             let prompt: string;
             
-            if (ranInt(0, 2) === 0) {
-                // 50% dùng chủ đề có sẵn
-                prompt = this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
-            } else {
-                // 50% yêu cầu Gemini tạo chủ đề mới dựa trên context cuộc trò chuyện
-                const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord "Làng Mèo". 
+            const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord "Làng Mèo". 
 
 ${conversationContext ? `Nội dung cuộc trò chuyện gần đây:\n${conversationContext}\n\n` : ''}
 
 Tạo một câu mở đầu cuộc trò chuyện ${conversationContext ? 'phù hợp với ngữ cảnh trên' : 'ngẫu nhiên'} với style như sau:
 - Ngôn ngữ gen Z, thân thiện và tò mò
 - Thỉnh thoảng dùng emoji (không phải lúc nào cũng cần) - chỉ khi thực sự cần thiết
-- Có thể về: anime, waifu, meme, random chat, daily life
+- Có thể về: spam bot, chia sẻ ảnh bản thân, tranh vẽ, anime, waifu, meme, random chat, daily life
 - Tông giọng friendly, tò mò, gen Z muốn share và interact
 - Dùng "mình" thay vì "tôi"
 - Ngắn gọn 1-2 câu thôi
@@ -205,16 +188,21 @@ Ví dụ style: "Ae nào có anime hay recommend không? Mình đang cần thêm
 
 Chỉ trả về nội dung tin nhắn, không giải thích.`;
 
-                const response = await safeGeminiCall(geminiPrompt);
-                prompt = response.success ? response.data! : this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
-            }
-
-            // Gửi tin nhắn
-            await this.autoChatChannel.send(prompt);
-            logger.info(`[AutoChat] Đã gửi tin nhắn ngẫu nhiên: ${prompt.substring(0, 50)}...`);
+            const response = await safeGeminiCall(geminiPrompt);
             
-            // Cập nhật thời gian chat cuối
-            this.lastChatTime = Date.now();
+            if (response.success && response.data) {
+                const prompt = response.data;
+                
+                // Gửi tin nhắn
+                await this.autoChatChannel.send(prompt);
+                logger.info(`[AutoChat] Đã gửi tin nhắn ngẫu nhiên: ${prompt.substring(0, 50)}...`);
+                
+                // Cập nhật thời gian chat cuối
+                this.lastChatTime = Date.now();
+            } else {
+                logger.warn(`[AutoChat] Gemini lỗi, bỏ qua lần chat này`);
+                return; // Không làm gì cả khi Gemini lỗi
+            }
 
         } catch (error) {
             logger.error(`[AutoChat] Lỗi khi gửi random chat: ${error}`);
