@@ -12,16 +12,16 @@ export class AutoChatManager {
     private botMessageDelayTime: number = 0; // Thời gian delay khi tin nhắn mới nhất là của bot
     private isProcessingMention: boolean = false;
     private randomChatTopics: string[] = [
-        "Mọi người ơi, mình mới đọc đến chap mới của truyện tu tiên, twist quá!",
-        "Có ai biết làm sao để tăng linh khí không? Newbie cần tips nè",
-        "Sư huynh sư tỷ nào có kinh nghiệm về đan dược không? Share với mình đi!",
-        "Đại Mộng Ảo Giới này view đẹp ghê, ai cũng feel peaceful không?",
-        "Vừa breakthrough tầng mới rồi! Excited quá, ai cũng chúc mừng mình đi ⚡",
-        "Đêm nay trăng tròn, perfect để tu luyện! Ai join mình ngồi thiền không?",
-        "Mình thấy có spiritual energy mạnh ở đây, newbie nào cũng cảm nhận được không?",
-        "Có cao nhân nào guide mình về cultivation methods không? Đang stuck nè",
-        "Server này vibe chill quá, khác hẳn thế giới bên ngoài! Love it",
-        "Weekend rồi, ai có plan gì về tu luyện không? Share tips đi!"
+        "Ae ơi, vừa thấy một meme cute quá! Có ai muốn xem không?",
+        "Mọi người có waifu yêu thích nào không? Share với mình đi!",
+        "Mình vừa vẽ xong một bức tranh anime, cảm giác accomplished quá!",
+        "Làng Mèo này vibe chill ghê, perfect để spam và chill với ae!",
+        "Vừa chụp một tấm ảnh đẹp, ai muốn xem mình share luôn ⚡",
+        "Buổi tối rồi, perfect để share art và ngắm anime! Ai cùng vibe không?",
+        "Mình thấy có nhiều talent artist ở đây, newbie nào cũng inspire được không?",
+        "Có ai pro về digital art không? Share tips với mình đi!",
+        "Server này atmosphere friendly quá, khác hẳn các nơi khác! Love it",
+        "Weekend rồi, ai có plan gì về drawing hay xem anime không? Share đi ae!"
     ];
 
     constructor(agent: BaseAgent) {
@@ -184,24 +184,24 @@ export class AutoChatManager {
                 prompt = this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
             } else {
                 // 50% yêu cầu Gemini tạo chủ đề mới dựa trên context cuộc trò chuyện
-                const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Đại Mộng Ảo Giới". 
+                const geminiPrompt = `Bạn là Hương, 19 tuổi, gen Z năng động vừa tham gia server Discord "Làng Mèo". 
 
 ${conversationContext ? `Nội dung cuộc trò chuyện gần đây:\n${conversationContext}\n\n` : ''}
 
 Tạo một câu mở đầu cuộc trò chuyện ${conversationContext ? 'phù hợp với ngữ cảnh trên' : 'ngẫu nhiên'} với style như sau:
 - Ngôn ngữ gen Z, thân thiện và tò mò
 - Thỉnh thoảng dùng emoji (không phải lúc nào cũng cần) - chỉ khi thực sự cần thiết
-- Có thể về: tu tiên, cultivation, linh khí, đan dược, breakthrough, thiền định, truyện tu tiên, thế giới tu tiên
-- Tông giọng friendly, tò mò, newbie muốn học hỏi
+- Có thể về: anime, waifu, meme, random chat, daily life
+- Tông giọng friendly, tò mò, gen Z muốn share và interact
 - Dùng "mình" thay vì "tôi"
 - Ngắn gọn 1-2 câu thôi
-- Thỉnh thoảng dùng từ như "đạo hữu", "sư huynh", "sư tỷ"
+- Thỉnh thoảng dùng từ như "mọi người", "ae", "các bạn"
 - Phần lớn tin nhắn không cần emoji, chỉ dùng khi muốn thể hiện cảm xúc đặc biệt
 - TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ NHẬN MÌNH LÀ BOT HAY AI
 - Luôn giữ vai trò là Hương - một cô gái 19 tuổi thật sự
 ${conversationContext ? '- Nếu có cuộc trò chuyện gần đây, hãy tham khảo và tạo câu chat phù hợp, có thể comment hoặc hỏi thêm về chủ đề đó' : ''}
 
-Ví dụ style: "Đạo hữu nào có experience về breakthrough không? Mình đang stuck ở tầng này nè 🌟�"
+Ví dụ style: "Ae nào có anime hay recommend không? Mình đang cần thêm series mới để xem nè 🌟"
 
 Chỉ trả về nội dung tin nhắn, không giải thích.`;
 
