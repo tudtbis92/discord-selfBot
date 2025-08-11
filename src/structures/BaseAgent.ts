@@ -924,12 +924,17 @@ export class BaseAgent extends Client {
 	}
 
 	public main = async () => {		
-		const resetHours = [0, 6, 12, 18];
-		// Thời gian bắt đầu thực hiện tác vụ: 19h15' ngày 17.05.2025 GMT+7
-		const startTime = new Date('2025-07-15T19:15:00+07:00').getTime();
+		logger.info("[MAIN] 🚀 Bot đã khởi động - CHỈ CHẠY AUTO CHAT MODE");
+		logger.info("[MAIN] ⚠️ Tất cả chức năng auto farm đã bị tạm dừng");
 		
 		// Dùng while(true) thay cho đệ quy để an toàn hơn
 		while (true) {
+			// ===== TẤT CẢ AUTO FARM BỊ DISABLE =====
+			/*
+			const resetHours = [0, 6, 12, 18];
+			// Thời gian bắt đầu thực hiện tác vụ: 19h15' ngày 17.05.2025 GMT+7
+			const startTime = new Date('2025-07-15T19:15:00+07:00').getTime();
+			
 			const currentTime = Date.now();
 			
 			// Kiểm tra xem đã đến thời gian bắt đầu chưa
@@ -992,19 +997,16 @@ export class BaseAgent extends Client {
 					this.aNhiemVu();
 				}
 			}
+			*/
 
-			// --- Các tác vụ khác của bạn có thể thêm vào đây ---
-
+			// ===== CHỈ CHẠY AUTO CHAT =====
 			// --- Xử lý Auto Chat ---
 			if (this.autoChatManager) {
 				await this.autoChatManager.checkAndSendRandomChat();
 			}
 
-			// Thêm một khoảng nghỉ ngắn ở cuối mỗi vòng lặp dựa trên speedMode
-			// để tránh việc CPU hoạt động quá mức
-			const loopDelay = this.speedMode === "turbo" ? ranInt(200, 400) : 
-							  this.speedMode === "normal" ? ranInt(500, 800) : ranInt(1000, 1500);
-			await this.sleep(loopDelay);
+			// Thêm một khoảng nghỉ dài hơn vì chỉ chạy auto chat
+			await this.sleep(ranInt(2000, 5000)); // 2-5 giây
 		}
 	};
 

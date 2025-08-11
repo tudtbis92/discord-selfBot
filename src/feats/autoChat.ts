@@ -1,5 +1,5 @@
 import { BaseAgent } from "../structures/BaseAgent.js";
-import { safeDiscordBotChat, safeGeminiCall } from "../structures/gemini.js";
+import { safeDiscordBotChatWithDelay, safeGeminiCall } from "../structures/gemini.js";
 import { logger } from "../utils/logger.js";
 import { ranInt } from "../utils/utils.js";
 import { TextChannel, Message } from "discord.js-selfbot-v13";
@@ -10,16 +10,16 @@ export class AutoChatManager {
     private lastChatTime: number = 0;
     private isProcessingMention: boolean = false;
     private randomChatTopics: string[] = [
-        "Ôi trời ơi, hôm nay nóng ghê! Ai có tips gì để survive không? 🥵💀",
-        "Mình vừa nghe bài mới của NewJeans, addicted luôn! Ai cũng stan ai không? 🎵✨",
-        "Game gì đang hot vậy mọi người? Mình đang bored muốn tìm game mới chơi 🎮👀",
-        "Cuối tuần này ai có plan gì fun không? Share với mình đi! 🎉",
-        "Đói bụng quá rồi... ai recommend quán ăn ngon ở HN không? 🍜😭",
-        "Friday mood activated! Ai cũng excited như mình không? 🔥💯",
-        "Vừa xem anime episode mới, twist plot crazy ghê! Ai cũng xem không? 📺😱",
-        "Học hành stress quá, ai có cách relax nào hay không? Need help 😩✨",
-        "Phim gì đang trending vậy? Mình cần content để binge watch 🎬👀",
-        "Weather dễ thương quá, perfect để đi cafe! Ai rủ mình đi không? ☕💕"
+        "Mọi người ơi, mình mới đọc đến chap mới của truyện tu tiên, twist quá! �✨",
+        "Có ai biết làm sao để tăng linh khí không? Newbie cần tips nè �💫",
+        "Sư huynh sư tỷ nào có kinh nghiệm về đan dược không? Share với mình đi! ⚗️�",
+        "Thái Cổ Thánh Địa này view đẹp ghê, ai cũng feel peaceful không? �️✨",
+        "Vừa breakthrough tầng mới rồi! Excited quá, ai cũng chúc mừng mình đi �⚡",
+        "Đêm nay trăng tròn, perfect để tu luyện! Ai join mình ngồi thiền không? 🌕�",
+        "Mình thấy có spiritual energy mạnh ở đây, newbie nào cũng cảm nhận được không? ✨🌟",
+        "Có cao nhân nào guide mình về cultivation methods không? Đang stuck nè 🤔�",
+        "Server này vibe chill quá, khác hẳn thế giới bên ngoài! Love it 💕�️",
+        "Weekend rồi, ai có plan gì về tu luyện không? Share tips đi! 🎭⚡"
     ];
 
     constructor(agent: BaseAgent) {
@@ -87,17 +87,18 @@ export class AutoChatManager {
                 messageContent = "Bạn vừa mention mình nhưng không nói gì cả. Có chuyện gì thế?";
             }
 
-            // Gọi Gemini để tạo phản hồi
-            const response = await safeDiscordBotChat(message.author.id, messageContent);
+            // Gọi Gemini để tạo phản hồi với delay
+            const response = await safeDiscordBotChatWithDelay(message.author.id, messageContent);
             
             if (response.success && response.data) {
-                // Chia nhỏ tin nhắn nếu quá dài
-                const messages = this.splitMessage(response.data);
-                
-                for (let i = 0; i < messages.length; i++) {
-                    if (i > 0) await this.agent.sleep(ranInt(1000, 2000)); // Delay giữa các tin nhắn
-                    await this.autoChatChannel?.send(messages[i]);
-                    logger.info(`[AutoChat] Đã phản hồi ${message.author.username}: ${messages[i].substring(0, 50)}...`);
+                // Gửi từng tin nhắn với delay đã được tính toán
+                for (let i = 0; i < response.data.messages.length; i++) {
+                    if (i > 0) {
+                        // Sử dụng delay được tính toán từ Gemini service (7-10s)
+                        await this.agent.sleep(response.data.delayBetween);
+                    }
+                    await this.autoChatChannel?.send(response.data.messages[i]);
+                    logger.info(`[AutoChat] Đã phản hồi ${message.author.username} (${i + 1}/${response.data.messages.length}): ${response.data.messages[i].substring(0, 50)}...`);
                 }
             } else {
                 // Fallback response
@@ -136,17 +137,18 @@ export class AutoChatManager {
                 prompt = this.randomChatTopics[ranInt(0, this.randomChatTopics.length)];
             } else {
                 // 50% yêu cầu Gemini tạo chủ đề mới
-                const geminiPrompt = `Bạn là Minh Châu, 19 tuổi, gen Z năng động đang chat trong server Discord "Phố Người Việt". 
+                const geminiPrompt = `Bạn là Trân, 19 tuổi, gen Z năng động vừa tham gia server Discord tu tiên "Thái Cổ Thánh Địa". 
                 
 Tạo một câu mở đầu cuộc trò chuyện ngẫu nhiên với style như sau:
-- Ngôn ngữ gen Z, có thể lẫn tiếng Anh (vibe, mood, flex, etc.)
-- Dùng emoji 😂🔥💀✨👀💯🎉
-- Có thể về: thời tiết, game, anime, K-pop, đồ ăn, drama, học hành, trending topics
-- Tông giọng năng động, hơi "mồm", táo bạo nhưng friendly
+- Ngôn ngữ gen Z, thân thiện và tò mò
+- Dùng emoji �✨🌟�⚡��
+- Có thể về: tu tiên, cultivation, linh khí, đan dược, breakthrough, thiền định, truyện tu tiên, thế giới tu tiên
+- Tông giọng friendly, tò mò, newbie muốn học hỏi
 - Dùng "mình" thay vì "tôi"
 - Ngắn gọn 1-2 câu thôi
+- Thỉnh thoảng dùng từ như "đạo hữu", "sư huynh", "sư tỷ"
 
-Ví dụ style: "Alo server! Ai đang bored như mình không? Need some entertainment 😂💀"
+Ví dụ style: "Đạo hữu nào có experience về breakthrough không? Mình đang stuck ở tầng này nè 🌟�"
 
 Chỉ trả về nội dung tin nhắn, không giải thích.`;
 
@@ -164,45 +166,6 @@ Chỉ trả về nội dung tin nhắn, không giải thích.`;
         } catch (error) {
             logger.error(`[AutoChat] Lỗi khi gửi random chat: ${error}`);
         }
-    }
-
-    private splitMessage(text: string, maxLength: number = 2000): string[] {
-        if (text.length <= maxLength) return [text];
-        
-        const messages: string[] = [];
-        let currentMessage = "";
-        
-        const sentences = text.split(/([.!?]+\s*)/);
-        
-        for (const sentence of sentences) {
-            if ((currentMessage + sentence).length > maxLength) {
-                if (currentMessage) {
-                    messages.push(currentMessage.trim());
-                    currentMessage = sentence;
-                } else {
-                    // Nếu câu quá dài, cắt theo từ
-                    const words = sentence.split(" ");
-                    for (const word of words) {
-                        if ((currentMessage + " " + word).length > maxLength) {
-                            if (currentMessage) {
-                                messages.push(currentMessage.trim());
-                                currentMessage = word;
-                            }
-                        } else {
-                            currentMessage += (currentMessage ? " " : "") + word;
-                        }
-                    }
-                }
-            } else {
-                currentMessage += sentence;
-            }
-        }
-        
-        if (currentMessage.trim()) {
-            messages.push(currentMessage.trim());
-        }
-        
-        return messages;
     }
 
     // Method để gọi từ main loop

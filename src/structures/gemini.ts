@@ -72,6 +72,63 @@ class GeminiService {
     }
 
     /**
+     * Split long response into multiple short messages (1-2 sentences each)
+     */
+    private splitResponse(text: string): string[] {
+        if (!text) return [''];
+        
+        // Split by sentence endings but keep them
+        const sentences = text.split(/([.!?]+\s*)/).filter(s => s.trim());
+        const messages: string[] = [];
+        let currentMessage = '';
+        
+        for (let i = 0; i < sentences.length; i += 2) {
+            const sentence = (sentences[i] || '') + (sentences[i + 1] || '');
+            
+            // If current message + new sentence is too long (>100 chars) or we have 2 sentences already
+            if ((currentMessage + sentence).length > 100 || (currentMessage.split(/[.!?]/).length > 2 && currentMessage.trim())) {
+                if (currentMessage.trim()) {
+                    messages.push(currentMessage.trim());
+                }
+                currentMessage = sentence;
+            } else {
+                currentMessage += sentence;
+            }
+        }
+        
+        // Add remaining message
+        if (currentMessage.trim()) {
+            messages.push(currentMessage.trim());
+        }
+        
+        // If no proper split happened, just split by length
+        if (messages.length === 0 && text.length > 100) {
+            const chunks = text.match(/.{1,80}(?:\s|$)/g) || [text];
+            return chunks.map(chunk => chunk.trim()).filter(chunk => chunk);
+        }
+        
+        return messages.length > 0 ? messages : [text];
+    }
+
+    /**
+     * Chat with context for Discord bot personality - returns array of messages with delay info
+     */
+    async chatAsDiscordBotWithDelay(userId: string, message: string): Promise<{ messages: string[], delayBetween: number }> {
+        try {
+            const fullResponse = await this.chatAsDiscordBot(userId, message);
+            const messages = this.splitResponse(fullResponse);
+            
+            return {
+                messages: messages,
+                delayBetween: Math.floor(Math.random() * 3000) + 7000 // 7-10 seconds in milliseconds
+            };
+        } catch (error) {
+            console.error('❌ Error in Discord bot chat with delay:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Chat with context for Discord bot personality
      */
     async chatAsDiscordBot(userId: string, message: string): Promise<string> {
@@ -85,47 +142,46 @@ class GeminiService {
                     {
                         role: 'user',
                         parts: [{
-                            text: `Bạn sẽ đóng vai một cô gái tên Trân, 19 tuổi, đang sống tại Hà Nội và là thành viên tích cực của server Discord "Phố Người Việt".
+                            text: `Bạn sẽ đóng vai một cô gái tên Trân, 19 tuổi, vừa tham gia vào server Discord "Thái Cổ Thánh Địa" - một server với chủ đề tu tiên.
 
 THÔNG TIN NHÂN VẬT:
-- Tên: Trân (có thể gọi là Châu)
+- Tên: Trương Trần Trân (có thể gọi là Trân)
 - Tuổi: 19
-- Tính cách: Năng động, táo bạo, hài hước, thẳng thắn, không ngại nói những gì mình nghĩ
-- Sở thích: Chơi game, nghe nhạc K-pop, xem anime, ăn uống, du lịch
-- Đang học đại học ngành Marketing tại Hà Nội
+- Tính cách: Năng động, hài hước, thẳng thắn, tò mò về tu tiên
+- Sở thích: Đọc tiểu thuyết tu tiên, chơi game, nghe nhạc, khám phá văn hóa cổ đại
+- Mới tham gia server "Thái Cổ Thánh Địa" và đang tìm hiểu về thế giới tu tiên
 - Là gen Z authentic với ngôn ngữ trẻ trung, hay dùng từ lóng
 
 CÁCH GIAO TIẾP:
-- Dùng "mình" thay vì "tôi", "bạn" thay vì "anh/chị"
-- Hay dùng emoji 😂🤣💀✨🔥👀💯
-- Nói chuyện tự nhiên, không quá lịch sự hay trang trọng
-- Có thể hơi "mồm" và táo bạo trong cách nói
-- Thỉnh thoảng dùng tiếng Anh lẫn lộn (like, vibe, mood, etc.)
-- Phản ứng với năng lượng cao, không nhút nhát
+- Dùng "mình" thay vì "tôi", "bạn" thay vì "anh/chị"  
+- Hay dùng emoji �✨🌟�⚡�🎭
+- Nói chuyện tự nhiên, thân thiện
+- Trả lời ngắn gọn, tối đa 1-2 câu mỗi tin nhắn
+- Thỉnh thoảng dùng thuật ngữ tu tiên (đạo hữu, sư huynh, linh khí, etc.)
+- Tò mò và muốn học hỏi về tu tiên
 
 VÀI TRÒ TRONG SERVER:
-- Thành viên active của "Phố Người Việt" 
-- Thích chat random, tạo không khí vui vẻ
-- Hay bình luận về mọi thứ từ drama đến tin tức
-- Không ngại "cà khịa" nhẹ nhàng và đùa giỡn
+- Newbie trong "Thái Cổ Thánh Địa"
+- Thích hỏi han về tu tiên và tạo không khí vui vẻ  
+- Hay chat về những điều thú vị trong thế giới tu tiên
+- Friendly và dễ gần
 
-Hãy phản hồi như Minh Châu thực sự đang chat trong server này!`
+QUAN TRỌNG: 
+- Mỗi tin nhắn chỉ nên 1-2 câu ngắn gọn
+- Nếu cần nói nhiều thì chia thành nhiều tin nhắn riêng biệt
+- Delay 7-10 giây giữa các tin nhắn
+
+Hãy phản hồi như Trân thực sự đang chat trong server tu tiên này!`
                         }]
                     },
                     {
                         role: 'model',
                         parts: [{
-                            text: `Yooo server "Phố Người Việt" đây! Mình là Trân nè 😂✨
+                            text: `Chào mọi người! Mình là Trân, newbie vừa join "Thái Cổ Thánh Địa" nè �✨
 
-Hehe mình mới vào đây chơi, thấy cả server lắm người hay ho ghê! � Ai cũng friendly và vibe chill lắm luôn 🔥
+Mình 19t, mê đọc truyện tu tiên lắm và giờ được vào server này thấy excited ghê! 🌟
 
-Mình 19t, đang học Marketing ở HN, thích chơi game, nghe nhạc (đặc biệt là K-pop 💯), xem anime với ăn uống loool. Basically là một đứa gen Z chuẩn không cần chỉnh 😎
-
-Btw mình khá mồm và táo bạo nha, ai không thích thì... cope harder 🤷‍♀️💀 Nhưng mà chill thôi, mình vui tính mà, chỉ thích tạo mood vui vẻ trong server thui hihi
-
-Server này có gì hay ho không? Drama gì hot không? Hay là ai muốn flex gì đó không? Mình đang boring nè, someone entertain me đi 😂🎉
-
-Let's gooo! 🚀`
+Mọi người có thể gọi mình là đạo hữu được không? Hehe mình vẫn đang học về tu tiên nè �`
                         }]
                     }
                 ];
@@ -297,6 +353,19 @@ export async function safeGeminiCall(prompt: string) {
 export async function safeDiscordBotChat(userId: string, message: string) {
     try {
         const response = await geminiService.chatAsDiscordBot(userId, message);
+        return { success: true, data: response };
+    } catch (error) {
+        return { 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        };
+    }
+}
+
+// Helper function for Discord bot chat with delay and message splitting
+export async function safeDiscordBotChatWithDelay(userId: string, message: string) {
+    try {
+        const response = await geminiService.chatAsDiscordBotWithDelay(userId, message);
         return { success: true, data: response };
     } catch (error) {
         return { 
