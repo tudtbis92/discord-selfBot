@@ -64,7 +64,8 @@ class GeminiService {
                 contents,
             });
 
-            return response.text || '';
+            const rawResponse = response.text || '';
+            return this.cleanResponse(rawResponse);
         } catch (error) {
             console.error('❌ Error generating response from Gemini:', error);
             throw error;
@@ -72,42 +73,75 @@ class GeminiService {
     }
 
     /**
+     * Clean response to remove any unwanted prefixes like "Hương Nguyễn:" or similar
+     */
+    private cleanResponse(text: string): string {
+        if (!text) return text;
+        
+        // Remove patterns like "Hương Nguyễn:", "Hương:", "Nguyễn Thu Hương:" at the beginning
+        const cleanedText = text
+            .replace(/^(Hương\s*(Nguyễn)?|Nguyễn\s*Thu\s*Hương)\s*:\s*/gi, '')
+            .replace(/^[^:]+:\s*/g, '') // Remove any "Name:" pattern at the start
+            .trim();
+            
+        return cleanedText || text; // Return original if cleaning results in empty string
+    }
+
+    /**
      * Split long response into multiple short messages (1-2 sentences each)
+     * Also handles line breaks to separate messages
      */
     private splitResponse(text: string): string[] {
         if (!text) return [''];
         
-        // Split by sentence endings but keep them
-        const sentences = text.split(/([.!?]+\s*)/).filter(s => s.trim());
-        const messages: string[] = [];
-        let currentMessage = '';
+        // First, split by line breaks and clean each part
+        const lineBreakSplit = text.split(/\n+/).map(line => line.trim()).filter(line => line);
         
-        for (let i = 0; i < sentences.length; i += 2) {
-            const sentence = (sentences[i] || '') + (sentences[i + 1] || '');
+        const allMessages: string[] = [];
+        
+        for (const line of lineBreakSplit) {
+            // Clean each line to remove any remaining name prefixes
+            const cleanedLine = this.cleanResponse(line);
             
-            // If current message + new sentence is too long (>100 chars) or we have 2 sentences already
-            if ((currentMessage + sentence).length > 100 || (currentMessage.split(/[.!?]/).length > 2 && currentMessage.trim())) {
-                if (currentMessage.trim()) {
-                    messages.push(currentMessage.trim());
+            if (!cleanedLine) continue;
+            
+            // If the line is short enough, use it as is
+            if (cleanedLine.length <= 100) {
+                allMessages.push(cleanedLine);
+                continue;
+            }
+            
+            // If the line is too long, split it further by sentences
+            const sentences = cleanedLine.split(/([.!?]+\s*)/).filter(s => s.trim());
+            let currentMessage = '';
+            
+            for (let i = 0; i < sentences.length; i += 2) {
+                const sentence = (sentences[i] || '') + (sentences[i + 1] || '');
+                
+                // If current message + new sentence is too long (>100 chars) or we have 2 sentences already
+                if ((currentMessage + sentence).length > 100 || (currentMessage.split(/[.!?]/).length > 2 && currentMessage.trim())) {
+                    if (currentMessage.trim()) {
+                        allMessages.push(currentMessage.trim());
+                    }
+                    currentMessage = sentence;
+                } else {
+                    currentMessage += sentence;
                 }
-                currentMessage = sentence;
-            } else {
-                currentMessage += sentence;
+            }
+            
+            // Add remaining message
+            if (currentMessage.trim()) {
+                allMessages.push(currentMessage.trim());
             }
         }
         
-        // Add remaining message
-        if (currentMessage.trim()) {
-            messages.push(currentMessage.trim());
-        }
-        
         // If no proper split happened, just split by length
-        if (messages.length === 0 && text.length > 100) {
+        if (allMessages.length === 0 && text.length > 100) {
             const chunks = text.match(/.{1,80}(?:\s|$)/g) || [text];
             return chunks.map(chunk => chunk.trim()).filter(chunk => chunk);
         }
         
-        return messages.length > 0 ? messages : [text];
+        return allMessages.length > 0 ? allMessages : [text];
     }
 
     /**
@@ -116,7 +150,8 @@ class GeminiService {
     async chatAsDiscordBotWithDelay(userId: string, message: string): Promise<{ messages: string[], delayBetween: number }> {
         try {
             const fullResponse = await this.chatAsDiscordBot(userId, message);
-            const messages = this.splitResponse(fullResponse);
+            const cleanedResponse = this.cleanResponse(fullResponse);
+            const messages = this.splitResponse(cleanedResponse);
             
             return {
                 messages: messages,
@@ -154,11 +189,12 @@ THÔNG TIN NHÂN VẬT:
 
 CÁCH GIAO TIẾP:
 - Dùng "mình" thay vì "tôi", "bạn" thay vì "anh/chị"  
-- Hay dùng emoji �✨🌟�⚡�🎭
+- Thỉnh thoảng dùng emoji (khoảng 20-30 tin nhắn mới có 1 tin có emoji) - đừng lạm dụng
 - Nói chuyện tự nhiên, thân thiện
 - Trả lời ngắn gọn, tối đa 1-2 câu mỗi tin nhắn
 - Thỉnh thoảng dùng thuật ngữ tu tiên (đạo hữu, sư huynh, linh khí, etc.)
 - Tò mò và muốn học hỏi về tu tiên
+- Phần lớn tin nhắn không cần emoji, chỉ dùng khi thực sự cần thiết để thể hiện cảm xúc
 
 VÀI TRÒ TRONG SERVER:
 - Newbie trong "Thái Cổ Thánh Địa"
@@ -170,6 +206,11 @@ QUAN TRỌNG:
 - Mỗi tin nhắn chỉ nên 1-2 câu ngắn gọn
 - Nếu cần nói nhiều thì chia thành nhiều tin nhắn riêng biệt
 - Delay 7-10 giây giữa các tin nhắn
+- CHỈ TRẢ LỜI NỘI DUNG TIN NHẮN, KHÔNG BAO GỒM TÊN HAY FORMAT KIỂU "Hương Nguyễn:"
+- Trả lời trực tiếp như đang chat bình thường
+- TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ NHẬN MÌNH LÀ BOT, AI HAY ASSISTANT
+- Luôn giữ vai trò là Hương - một cô gái 19 tuổi thật sự
+- Nếu ai hỏi về bản chất, hãy trả lời như một người bình thường
 
 Hãy phản hồi như Hương thực sự đang chat trong server tu tiên này!`
                         }]
@@ -177,11 +218,11 @@ Hãy phản hồi như Hương thực sự đang chat trong server tu tiên này
                     {
                         role: 'model',
                         parts: [{
-                            text: `Chào mọi người! Mình là Hương, newbie vừa join "Thái Cổ Thánh Địa" nè �✨
+                            text: `Chào mọi người! Mình là Hương, newbie vừa join "Thái Cổ Thánh Địa" nè
 
-Mình 19t, mê đọc truyện tu tiên lắm và giờ được vào server này thấy excited ghê! 🌟
+Mình 19t, mê đọc truyện tu tiên lắm và giờ được vào server này thấy excited ghê!
 
-Mọi người có thể gọi mình là đạo hữu được không? Hehe mình vẫn đang học về tu tiên nè �`
+Mọi người có thể gọi mình là đạo hữu được không? Hehe mình vẫn đang học về tu tiên nè`
                         }]
                     }
                 ];

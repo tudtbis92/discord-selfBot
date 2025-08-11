@@ -12,16 +12,16 @@ export class AutoChatManager {
     private botMessageDelayTime: number = 0; // Thời gian delay khi tin nhắn mới nhất là của bot
     private isProcessingMention: boolean = false;
     private randomChatTopics: string[] = [
-        "Mọi người ơi, mình mới đọc đến chap mới của truyện tu tiên, twist quá! �✨",
-        "Có ai biết làm sao để tăng linh khí không? Newbie cần tips nè �💫",
-        "Sư huynh sư tỷ nào có kinh nghiệm về đan dược không? Share với mình đi! ⚗️�",
-        "Thái Cổ Thánh Địa này view đẹp ghê, ai cũng feel peaceful không? �️✨",
-        "Vừa breakthrough tầng mới rồi! Excited quá, ai cũng chúc mừng mình đi �⚡",
-        "Đêm nay trăng tròn, perfect để tu luyện! Ai join mình ngồi thiền không? 🌕�",
-        "Mình thấy có spiritual energy mạnh ở đây, newbie nào cũng cảm nhận được không? ✨🌟",
-        "Có cao nhân nào guide mình về cultivation methods không? Đang stuck nè 🤔�",
-        "Server này vibe chill quá, khác hẳn thế giới bên ngoài! Love it 💕�️",
-        "Weekend rồi, ai có plan gì về tu luyện không? Share tips đi! 🎭⚡"
+        "Mọi người ơi, mình mới đọc đến chap mới của truyện tu tiên, twist quá!",
+        "Có ai biết làm sao để tăng linh khí không? Newbie cần tips nè",
+        "Sư huynh sư tỷ nào có kinh nghiệm về đan dược không? Share với mình đi!",
+        "Thái Cổ Thánh Địa này view đẹp ghê, ai cũng feel peaceful không?",
+        "Vừa breakthrough tầng mới rồi! Excited quá, ai cũng chúc mừng mình đi ⚡",
+        "Đêm nay trăng tròn, perfect để tu luyện! Ai join mình ngồi thiền không?",
+        "Mình thấy có spiritual energy mạnh ở đây, newbie nào cũng cảm nhận được không?",
+        "Có cao nhân nào guide mình về cultivation methods không? Đang stuck nè",
+        "Server này vibe chill quá, khác hẳn thế giới bên ngoài! Love it",
+        "Weekend rồi, ai có plan gì về tu luyện không? Share tips đi!"
     ];
 
     constructor(agent: BaseAgent) {
@@ -190,12 +190,15 @@ ${conversationContext ? `Nội dung cuộc trò chuyện gần đây:\n${convers
 
 Tạo một câu mở đầu cuộc trò chuyện ${conversationContext ? 'phù hợp với ngữ cảnh trên' : 'ngẫu nhiên'} với style như sau:
 - Ngôn ngữ gen Z, thân thiện và tò mò
-- Dùng emoji �✨🌟�⚡��
+- Thỉnh thoảng dùng emoji (không phải lúc nào cũng cần) - chỉ khi thực sự cần thiết
 - Có thể về: tu tiên, cultivation, linh khí, đan dược, breakthrough, thiền định, truyện tu tiên, thế giới tu tiên
 - Tông giọng friendly, tò mò, newbie muốn học hỏi
 - Dùng "mình" thay vì "tôi"
 - Ngắn gọn 1-2 câu thôi
 - Thỉnh thoảng dùng từ như "đạo hữu", "sư huynh", "sư tỷ"
+- Phần lớn tin nhắn không cần emoji, chỉ dùng khi muốn thể hiện cảm xúc đặc biệt
+- TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ NHẬN MÌNH LÀ BOT HAY AI
+- Luôn giữ vai trò là Hương - một cô gái 19 tuổi thật sự
 ${conversationContext ? '- Nếu có cuộc trò chuyện gần đây, hãy tham khảo và tạo câu chat phù hợp, có thể comment hoặc hỏi thêm về chủ đề đó' : ''}
 
 Ví dụ style: "Đạo hữu nào có experience về breakthrough không? Mình đang stuck ở tầng này nè 🌟�"
