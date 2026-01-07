@@ -24,6 +24,7 @@ export class BaseAgent extends Client {
 	public cache!: Configuration;
 	public activeChannel!: TextChannel;
 	public autoChatManager?: AutoChatManager;
+	private captchaSolverConfigured = false;
 
 	totalTexts = 0;
 
@@ -37,6 +38,11 @@ export class BaseAgent extends Client {
 	}
 
 	public setupCaptchaSolver = async () => {
+		if (this.captchaSolverConfigured) {
+			logger.debug("[Captcha] Captcha solver already configured");
+			return true;
+		}
+		
 		if (!this.config.captchaService || !this.config.captchaKey) {
 			logger.warn("[Captcha] Captcha solver not configured. Avatar changes may fail if captcha is required.");
 			logger.warn("[Captcha] Xem hướng dẫn tại: doc/CAPTCHA_SOLVER.md");
@@ -49,19 +55,21 @@ export class BaseAgent extends Client {
 				return false;
 			}
 
-			// Set captcha solver theo API của discord.js-selfbot-v13
-			// @ts-ignore - captchaSolver không có trong type definition
-			this.captchaSolver = async (captcha, userAgent) => {
+			// Dynamic import captcha solver package
+			const Captcha2 = await import('@2captcha/captcha-solver');
+			const CaptchaSolver = Captcha2.default || Captcha2;
+			
+			const captchaKey = this.config.captchaKey;
+			
+			// Set captcha solver trong CLIENT OPTIONS theo API của discord.js-selfbot-v13
+			// @ts-ignore - options có thể được modify sau khi init
+			this.options.captchaSolver = async (captcha: any, userAgent: string) => {
 				try {
 					logger.info("[Captcha] Discord yêu cầu giải captcha...");
 					logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
 					
-					// Dynamic import
-					const Captcha2 = await import('@2captcha/captcha-solver');
-					const CaptchaSolver = Captcha2.default || Captcha2;
-					
 					// @ts-ignore
-					const solver = new CaptchaSolver.Solver(this.config.captchaKey);
+					const solver = new CaptchaSolver.Solver(captchaKey);
 					
 					logger.info("[Captcha] Đang gửi captcha đến 2Captcha...");
 					
@@ -88,6 +96,7 @@ export class BaseAgent extends Client {
 				}
 			};
 
+			this.captchaSolverConfigured = true;
 			logger.info(`[Captcha] ✅ Captcha solver configured: ${this.config.captchaService}`);
 			logger.info(`[Captcha] API Key: ${this.config.captchaKey.substring(0, 8)}...`);
 			return true;
@@ -101,9 +110,6 @@ export class BaseAgent extends Client {
 
 	public registerEvents = () => {
 		this.once("ready", async () => {
-			// Setup captcha solver NGAY SAU KHI ready (sau khi login)
-			await this.setupCaptchaSolver();
-			
 			logger.info("Logged in as " + this.user?.displayName);
 
 			if (this.config.showRPC) {
@@ -166,15 +172,12 @@ export class BaseAgent extends Client {
 		this.config = config;
 		this.cache = structuredClone(config);
 		
-		// Captcha solver sẽ được setup trong ready event handler
-		// để đảm bảo nó được setup SAU KHI login
+		// Setup captcha solver NGAY SAU KHI set config (TRƯỚC KHI login)
+		await this.setupCaptchaSolver();
 	}
 
 	public run = (config?: Configuration) => {
-		// Config đã được set bởi setConfig(), không cần gán lại
-		// Chỉ register events, KHÔNG emit ready vì đã login rồi
-		commandHandler(this);
-		mentionHandler(this);
-		avatarHandler(this);
+		// Config và handlers đã được setup, không cần làm gì thêm
+		// Method này giữ lại để tương thích với code cũ
 	}
 }
