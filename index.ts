@@ -54,10 +54,17 @@ program
             if (!data) return logger.error(`File ${program.opts().import} is empty!`);
 
             try {
-                // Setup config và captcha solver TRƯỚC KHI login
+                // Setup config trước
                 await agent.setConfig(data);
+                
+                // Register events TRƯỚC KHI login (để ready handler được đăng ký)
+                agent.registerEvents();
+                
+                // Login (ready event sẽ fire và setup captcha solver)
                 await agent.checkAccount(data.token);
-                agent.run(data)
+                
+                // Chỉ register thêm các handler sau khi login
+                agent.run(data);
             } catch (error) {
                 logger.error(error as Error)
                 logger.error("Failed to import data file")
@@ -65,8 +72,15 @@ program
         } else {
             const config = await InquirerConfig(agent)
             await agent.setConfig(config);
+            
+            // Register events TRƯỚC KHI login
+            agent.registerEvents();
+            
+            // Login
             await agent.checkAccount(config.token);
-            agent.run(config)
+            
+            // Chỉ register thêm các handler sau khi login
+            agent.run(config);
         }
     })
 

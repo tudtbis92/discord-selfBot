@@ -101,6 +101,9 @@ export class BaseAgent extends Client {
 
 	public registerEvents = () => {
 		this.once("ready", async () => {
+			// Setup captcha solver NGAY SAU KHI ready (sau khi login)
+			await this.setupCaptchaSolver();
+			
 			logger.info("Logged in as " + this.user?.displayName);
 
 			if (this.config.showRPC) {
@@ -163,19 +166,15 @@ export class BaseAgent extends Client {
 		this.config = config;
 		this.cache = structuredClone(config);
 		
-		// Setup captcha solver TRƯỚC KHI login
-		await this.setupCaptchaSolver();
+		// Captcha solver sẽ được setup trong ready event handler
+		// để đảm bảo nó được setup SAU KHI login
 	}
 
 	public run = (config?: Configuration) => {
-		// Chỉ gán config nếu được truyền vào VÀ chưa có config
-		// Tránh ghi đè config đã được setup bởi setConfig()
-		if (config && !this.config) {
-			this.config = config;
-			this.cache = structuredClone(config);
-		}
-		
-		this.registerEvents();
-		this.emit("ready", this.user?.client!)
+		// Config đã được set bởi setConfig(), không cần gán lại
+		// Chỉ register events, KHÔNG emit ready vì đã login rồi
+		commandHandler(this);
+		mentionHandler(this);
+		avatarHandler(this);
 	}
 }
