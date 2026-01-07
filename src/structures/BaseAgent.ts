@@ -167,9 +167,13 @@ export class BaseAgent extends Client {
 		await this.setupCaptchaSolver();
 	}
 
-	public run = (config: Configuration) => {
-		this.config = config;
-		this.cache = structuredClone(config);
+	public run = (config?: Configuration) => {
+		// Chỉ gán config nếu được truyền vào VÀ chưa có config
+		// Tránh ghi đè config đã được setup bởi setConfig()
+		if (config && !this.config) {
+			this.config = config;
+			this.cache = structuredClone(config);
+		}
 		
 		this.registerEvents();
 		this.emit("ready", this.user?.client!)
