@@ -44,43 +44,52 @@ export class BaseAgent extends Client {
 		}
 
 		try {
-			// Dynamic import cho ES modules
-			const Captcha = await import('@2captcha/captcha-solver');
-			const CaptchaSolver = Captcha.default || Captcha;
-			
-			let solver: any;
-			switch (this.config.captchaService) {
-				case "2captcha":
-					// @ts-ignore
-					solver = new CaptchaSolver.Solver(this.config.captchaKey);
-					// @ts-ignore
-					this.captchaSolver = async (captcha: any) => {
-						try {
-							logger.info("[Captcha] Đang giải captcha với 2Captcha...");
-							const result = await solver.hcaptcha(captcha.captcha_sitekey, 'discord.com', {
-								data: captcha.captcha_rqdata,
-							});
-							logger.sent("[Captcha] Đã giải captcha thành công!");
-							return result.data;
-						} catch (error) {
-							logger.error("[Captcha] Lỗi khi giải captcha:");
-							logger.error(error as Error);
-							throw error;
-						}
-					};
-					break;
-				case "capmonster":
-				case "anti-captcha":
-				case "custom":
-					logger.warn(`[Captcha] Service ${this.config.captchaService} chưa được implement đầy đủ.`);
-					logger.warn("[Captcha] Khuyên dùng 2captcha để có kết quả tốt nhất.");
-					return false;
-				default:
-					logger.warn(`[Captcha] Unknown service: ${this.config.captchaService}`);
-					return false;
+			if (this.config.captchaService !== "2captcha") {
+				logger.warn(`[Captcha] Chỉ hỗ trợ 2captcha. Service ${this.config.captchaService} không được hỗ trợ.`);
+				return false;
 			}
 
+			// Set captcha solver theo API của discord.js-selfbot-v13
+			// @ts-ignore - captchaSolver không có trong type definition
+			this.captchaSolver = async (captcha, userAgent) => {
+				try {
+					logger.info("[Captcha] Discord yêu cầu giải captcha...");
+					logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
+					
+					// Dynamic import
+					const Captcha2 = await import('@2captcha/captcha-solver');
+					const CaptchaSolver = Captcha2.default || Captcha2;
+					
+					// @ts-ignore
+					const solver = new CaptchaSolver.Solver(this.config.captchaKey);
+					
+					logger.info("[Captcha] Đang gửi captcha đến 2Captcha...");
+					
+					// Giải hCaptcha
+					// @ts-ignore - Bỏ qua type checking cho API call
+					const result = await solver.hcaptcha(captcha.captcha_sitekey, 'https://discord.com/channels/@me', {
+						data: captcha.captcha_rqdata,
+						userAgent: userAgent,
+					});
+					
+					logger.sent("[Captcha] ✅ Đã giải captcha thành công!");
+					return result.data;
+				} catch (error: any) {
+					logger.error("[Captcha] ❌ Lỗi khi giải captcha:");
+					logger.error(error as Error);
+					
+					if (error.message?.includes('ZERO_BALANCE')) {
+						logger.error("[Captcha] Tài khoản 2Captcha hết tiền!");
+					} else if (error.message?.includes('ERROR_WRONG_USER_KEY')) {
+						logger.error("[Captcha] API Key không đúng!");
+					}
+					
+					throw error;
+				}
+			};
+
 			logger.info(`[Captcha] ✅ Captcha solver configured: ${this.config.captchaService}`);
+			logger.info(`[Captcha] API Key: ${this.config.captchaKey.substring(0, 8)}...`);
 			return true;
 		} catch (error) {
 			logger.error("[Captcha] Failed to setup captcha solver:");
