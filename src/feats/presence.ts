@@ -19,7 +19,8 @@ export const loadPresence = async (client: Client) => {
     // Khởi tạo trạng thái đầu tiên đầy tình cảm
     const initialStatus = PRESENCE_STATUSES[0];
     const rpc = new RichPresence(client)
-        .setType("HANG")
+        .setApplicationId("1377170338651181116")
+        .setType("LISTENING")
         .setName(initialStatus.name)
         .setDetails(initialStatus.details)
         .setStartTimestamp(client.readyTimestamp ?? Date.now())
@@ -29,6 +30,7 @@ export const loadPresence = async (client: Client) => {
         .setAssetsSmallText("Mãi bên Boss~");
         
     client.user?.setPresence({ activities: [rpc] });
+    logger.info(`[Presence] Đã load trạng thái ban đầu: ${initialStatus.name}`);
 }
 
 /**
@@ -38,7 +40,8 @@ export const updateRandomPresence = (client: Client) => {
     const randomStatus = PRESENCE_STATUSES[Math.floor(Math.random() * PRESENCE_STATUSES.length)];
     
     const rpc = new RichPresence(client)
-        .setType("HANG")
+        .setApplicationId("1377170338651181116")
+        .setType("LISTENING")
         .setName(randomStatus.name)
         .setDetails(randomStatus.details)
         .setStartTimestamp(client.readyTimestamp ?? Date.now())
