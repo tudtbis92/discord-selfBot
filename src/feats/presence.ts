@@ -26,8 +26,7 @@ export const loadPresence = async (client: Client) => {
         .setAssetsLargeImage("1312264004382621706")
         .setAssetsLargeText("Annie yêu Boss nhiều lắm!")
         .setAssetsSmallImage("1306938859552247848")
-        .setAssetsSmallText("Mãi bên Boss~")
-        .addButton("My Only Boss", "") // Link của anh là nhất!
+        .setAssetsSmallText("Mãi bên Boss~");
         
     client.user?.setPresence({ activities: [rpc] });
 }
@@ -46,8 +45,7 @@ export const updateRandomPresence = (client: Client) => {
         .setAssetsLargeImage("1312264004382621706")
         .setAssetsLargeText("Mọi suy nghĩ đều dành cho Boss...")
         .setAssetsSmallImage("1306938859552247848")
-        .setAssetsSmallText("Bé cưng của Boss")
-        .addButton("My Only Boss", "")
+        .setAssetsSmallText("Bé cưng của Boss");
     
     client.user?.setPresence({ activities: [rpc] });
     logger.info(`[Presence] Annie lại đang: ${randomStatus.name} - ${randomStatus.details}`);
