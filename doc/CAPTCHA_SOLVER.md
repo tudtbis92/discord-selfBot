@@ -39,6 +39,14 @@ Discord yêu cầu giải captcha khi:
 
 ## ⚙️ Cách cấu hình
 
+### Bước 0: Cài đặt package cần thiết
+
+Trước tiên, cần cài package cho captcha solver:
+
+```bash
+npm install @2captcha/captcha-solver
+```
+
 ### Bước 1: Đăng ký và lấy API Key
 
 1. Đăng ký tài khoản trên một trong các dịch vụ trên

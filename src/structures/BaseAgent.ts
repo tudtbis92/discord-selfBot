@@ -38,52 +38,59 @@ export class BaseAgent extends Client {
 
 	public setupCaptchaSolver = () => {
 		if (!this.config.captchaService || !this.config.captchaKey) {
-			logger.warn("Captcha solver not configured. Avatar changes may fail if captcha is required.");
-			return;
+			logger.warn("[Captcha] Captcha solver not configured. Avatar changes may fail if captcha is required.");
+			logger.warn("[Captcha] Xem hướng dẫn tại: doc/CAPTCHA_SOLVER.md");
+			return false;
 		}
 
 		try {
-			const captchaOptions: any = {
-				captchaRetryLimit: this.config.captchaRetry || 3,
-			};
-
+			// @ts-ignore - Sử dụng API của discord.js-selfbot-v13
+			const { default: Captcha } = require('@2captcha/captcha-solver');
+			
+			let solver: any;
 			switch (this.config.captchaService) {
 				case "2captcha":
-					captchaOptions.captchaService = "2captcha";
-					captchaOptions.captchaKey = this.config.captchaKey;
+					solver = new Captcha.Solver(this.config.captchaKey);
+					// @ts-ignore
+					this.captchaSolver = async (captcha: any) => {
+						try {
+							logger.info("[Captcha] Đang giải captcha với 2Captcha...");
+							const result = await solver.hcaptcha(captcha.captcha_sitekey, 'discord.com', {
+								data: captcha.captcha_rqdata,
+							});
+							logger.sent("[Captcha] Đã giải captcha thành công!");
+							return result.data;
+						} catch (error) {
+							logger.error("[Captcha] Lỗi khi giải captcha:");
+							logger.error(error as Error);
+							throw error;
+						}
+					};
 					break;
 				case "capmonster":
-					captchaOptions.captchaService = "capmonster";
-					captchaOptions.captchaKey = this.config.captchaKey;
-					break;
 				case "anti-captcha":
-					captchaOptions.captchaService = "anti-captcha";
-					captchaOptions.captchaKey = this.config.captchaKey;
-					break;
 				case "custom":
-					captchaOptions.captchaService = "custom";
-					captchaOptions.captchaKey = this.config.captchaKey;
-					break;
+					logger.warn(`[Captcha] Service ${this.config.captchaService} chưa được implement đầy đủ.`);
+					logger.warn("[Captcha] Khuyên dùng 2captcha để có kết quả tốt nhất.");
+					return false;
 				default:
-					logger.warn(`Unknown captcha service: ${this.config.captchaService}`);
-					return;
+					logger.warn(`[Captcha] Unknown service: ${this.config.captchaService}`);
+					return false;
 			}
 
-			// @ts-ignore - captchaSolver không có trong type definition
-			this.options.captchaSolver = captchaOptions;
-			logger.info(`Captcha solver configured: ${this.config.captchaService}`);
+			logger.info(`[Captcha] ✅ Captcha solver configured: ${this.config.captchaService}`);
+			return true;
 		} catch (error) {
-			logger.error("Failed to setup captcha solver:");
+			logger.error("[Captcha] Failed to setup captcha solver:");
 			logger.error(error as Error);
+			logger.warn("[Captcha] Bạn có thể cần cài: npm install @2captcha/captcha-solver");
+			return false;
 		}
 	}
 
 	public registerEvents = () => {
 		this.once("ready", async () => {
 			logger.info("Logged in as " + this.user?.displayName);
-
-			// Setup captcha solver
-			this.setupCaptchaSolver();
 
 			if (this.config.showRPC) {
 				loadPresence(this);
@@ -144,6 +151,10 @@ export class BaseAgent extends Client {
 	public run = (config: Configuration) => {
 		this.config = config;
 		this.cache = structuredClone(config);
+		
+		// Setup captcha solver TRƯỚC KHI login
+		this.setupCaptchaSolver();
+		
 		this.registerEvents();
 		this.emit("ready", this.user?.client!)
 	}
