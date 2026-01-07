@@ -12,7 +12,7 @@ import {
 	Configuration,
 } from "../typings/typings.js";
 import { logger } from "../utils/logger.js";
-import { loadPresence } from "../feats/presence.js";
+import { loadPresence, startAutoPresenceUpdate } from "../feats/presence.js";
 import { loadCommands } from "../feats/command.js";
 import { commandHandler } from "../handler/commandHandler.js";
 import { mentionHandler } from "../handler/mentionHandler.js";
@@ -39,7 +39,10 @@ export class BaseAgent extends Client {
 		this.once("ready", async () => {
 			logger.info("Logged in as " + this.user?.displayName);
 
-			if (this.config.showRPC) loadPresence(this);
+			if (this.config.showRPC) {
+				loadPresence(this);
+				startAutoPresenceUpdate(this); // Bắt đầu auto update presence
+			}
 			if (this.config.prefix) this.commands = await loadCommands();
 
 			this.activeChannel = this.channels.cache.get(
