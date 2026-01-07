@@ -63,11 +63,24 @@ export const mentionHandler = async (agent: BaseAgent) => {
             
             // Kiểm tra xem user có được phép không
             if (userId !== ALLOWED_USER_ID) {
-                // Nếu được mention thì phản hồi từ chối
+                // Nếu được mention thì phản hồi từ chối sau delay random
                 if (isMentioned) {
+                    // Random delay từ 15-50 giây (15000-50000ms)
+                    const delayMs = Math.floor(Math.random() * (50000 - 15000 + 1)) + 15000;
+                    const delaySec = (delayMs / 1000).toFixed(1);
+                    
+                    logger.info(`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Delay ${delaySec}s trước khi từ chối...`);
+                    
+                    // Hiển thị typing indicator trong khi delay
+                    await message.channel.sendTyping();
+                    
+                    // Delay random 15-50s
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    
+                    // Gửi phản hồi từ chối
                     const randomResponse = DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
                     await message.reply(randomResponse);
-                    logger.info(`[MentionHandler] Từ chối user ${message.author.tag} (${userId})`);
+                    logger.info(`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s`);
                 }
                 return;
             }
