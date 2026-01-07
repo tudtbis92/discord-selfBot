@@ -34,6 +34,11 @@ function parseGeminiError(error: any): string {
         return '🌐 Lỗi: Không thể kết nối đến Google AI. Kiểm tra kết nối internet của bạn';
     }
     
+    // Location/Region not supported
+    if (errorMessage.includes('User location is not supported') || errorMessage.includes('FAILED_PRECONDITION')) {
+        return '🌍 Lỗi: Khu vực địa lý không được hỗ trợ cho API này. Hãy thử sử dụng VPN hoặc thay đổi API endpoint';
+    }
+    
     // Model not found or unavailable
     if (errorMessage.includes('models/') || errorMessage.includes('NOT_FOUND') || errorStatus === 404) {
         return '🤖 Lỗi: Model không tồn tại hoặc không khả dụng. Kiểm tra lại tên model trong code';
