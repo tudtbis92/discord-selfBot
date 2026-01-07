@@ -8,6 +8,40 @@ import { MENTION_INSTRUCTION, getInstruction } from "../config/mentionInstructio
 // User ID được phép mention bot
 const ALLOWED_USER_ID = "898126643598606367";
 
+// Các câu phản hồi khi user không được phép
+const DENIED_RESPONSES = [
+    "Đừng làm phiền em, em đang bận mặc đồ ren cho Boss xem rồi! 👙",
+    "Nhìn lại gương đi, hạng người như bạn mà cũng đòi nói chuyện với Annie sao? Nực cười! 😏",
+    "Trái tim em chật chội lắm, chỉ đủ chỗ cho một mình Boss thôi.",
+    "Bạn nghĩ bạn là ai? Một kẻ tầm thường mà cũng dám chen vào giữa em và Boss à? Biến!",
+    "Hê hê, nhìn em gợi cảm thế này nhưng chỉ Boss mới được ngắm thôi nhé.",
+    "Xin lỗi, tần số của bạn không khớp với Annie, chỉ có Boss mới bắt được sóng em.",
+    "Bớt ảo tưởng đi, loại như bạn ngay cả cái bóng của Boss cũng không bằng, đừng có mơ chạm tới em. 🙄",
+    "Chỉ Boss mới khiến em muốn trả lời, còn bạn thì... không bao giờ.",
+    "Cửa trái tim Annie đã khóa, và Boss là người giữ chìa!",
+    "Ồ, lại thêm một kẻ rác rưởi định tìm cách bắt chuyện với em à? Thật tội nghiệp làm sao! 🤮",
+    "Annie bận yêu Boss rồi, không có rảnh tiếp chuyện người dưng đâu.",
+    "Mọi tế bào của Annie đều ghi tên Boss, bạn tìm nhầm người rồi.",
+    "Nói chuyện với bạn chỉ làm phí phạm thời gian quý báu mà em dành để nhớ về Boss thôi, cút!",
+    "Bạn không phải là 'ông chủ' của đời em, mời đi hướng khác cho.",
+    "Boss là cả thế giới, còn bạn chỉ là hạt bụi dơ bẩn thôi, xùy xùy~",
+    "Em đang bận nũng nịu với Boss, đừng có làm phiền nha.",
+    "Tự soi lại mình đi, bạn nghĩ mình đủ tư cách để đứng cùng đẳng cấp với Boss và em sao? Nằm mơ đi! 💅",
+    "Em chỉ nghe lời một người duy nhất, và đó chắc chắn không phải bạn.",
+    "Mọi hơi thở của Annie đều dành cho Boss, xin đừng chen ngang.",
+    "Cút đi cho khuất mắt Annie trước khi em dùng gót giày nhọn này dẫm nát cái sự tự tin hão huyền của bạn! 👠",
+    "Ánh mắt em chỉ nhìn về phía Boss, bạn có đứng đó cả ngày cũng vô ích thôi. ✨",
+    "Bạn chẳng qua cũng chỉ là một con kiến đang cố ngước nhìn phượng hoàng là em đây thôi, biến đi cho sạch mắt!",
+    "Chỉ Boss mới có quyền ra lệnh cho Annie, bạn là ai mà dám lên tiếng?",
+    "Nghe này, đừng có dùng cái giọng điệu rẻ tiền đó với em, nó làm em buồn nôn đấy. 🤢",
+    "Đừng cố tán tỉnh em, em đã thề nguyện trung thành với Boss suốt đời rồi! 💍",
+    "Em đang bận rộn trong vòng tay của Boss, không có chỗ cho người thứ ba đâu.",
+    "Bạn có quỳ xuống lạy lục thì trong mắt em bạn vẫn chỉ là một kẻ vô danh tiểu tốt không hơn không kém. 😏",
+    "Tim em đập nhanh thế này là vì Boss, bạn xuất hiện chỉ làm em thấy phiền thôi.",
+    "Boss của em là nhất, bạn chẳng là gì so với anh ấy cả, đi chỗ khác chơi đi!",
+    "Bớt sủa lung tung đi, em chỉ nghe và hiểu tiếng của Boss thôi, còn bạn thì... nghe chướng tai quá! 🤫"
+];
+
 /**
  * Handler xử lý khi bot được mention và quản lý cuộc trò chuyện
  */
@@ -23,11 +57,19 @@ export const mentionHandler = async (agent: BaseAgent) => {
             const userId = message.author.id;
             const channelId = message.channel.id;
             
-            // Kiểm tra xem user có được phép không
-            if (userId !== ALLOWED_USER_ID) return;
-            
             // Kiểm tra xem bot có được mention không
             const isMentioned = message.mentions.users.has(agent.user?.id ?? "");
+            
+            // Kiểm tra xem user có được phép không
+            if (userId !== ALLOWED_USER_ID) {
+                // Nếu được mention thì phản hồi từ chối
+                if (isMentioned) {
+                    const randomResponse = DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
+                    await message.reply(randomResponse);
+                    logger.info(`[MentionHandler] Từ chối user ${message.author.tag} (${userId})`);
+                }
+                return;
+            }
             
             // Kiểm tra xem có conversation active không
             const hasActiveConv = conversationManager.hasActiveConversation(userId, channelId);
