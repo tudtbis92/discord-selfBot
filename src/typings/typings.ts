@@ -57,6 +57,9 @@ export interface Configuration {
     autoChatChannelID?: string
     autoChat?: boolean
     autoChatInterval?: number // phút
+    
+    // Avatar Update Channel
+    avatarUpdateChannelID?: string
 }
 // export interface Configuration {
 //     tag: string
