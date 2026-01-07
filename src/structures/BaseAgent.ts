@@ -75,7 +75,8 @@ export class BaseAgent extends Client {
 					
 					// Giải hCaptcha
 					// @ts-ignore - Bỏ qua type checking cho API call
-					const result = await solver.hcaptcha(captcha.captcha_sitekey, 'https://discord.com/channels/@me', {
+					const result = await solver.hcaptcha(captcha.captcha_sitekey, {
+						pageurl: 'https://discord.com/channels/@me',
 						data: captcha.captcha_rqdata,
 						userAgent: userAgent,
 					});
