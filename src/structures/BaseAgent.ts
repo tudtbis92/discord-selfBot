@@ -73,9 +73,10 @@ export class BaseAgent extends Client {
 					
 					logger.info("[Captcha] Đang gửi captcha đến 2Captcha...");
 					
-					// Giải hCaptcha
+					// Giải hCaptcha - chỉ cần 1 object parameter
 					// @ts-ignore - Bỏ qua type checking cho API call
-					const result = await solver.hcaptcha(captcha.captcha_sitekey, {
+					const result = await solver.hcaptcha({
+						sitekey: captcha.captcha_sitekey,
 						pageurl: 'https://discord.com/channels/@me',
 						data: captcha.captcha_rqdata,
 						userAgent: userAgent,
