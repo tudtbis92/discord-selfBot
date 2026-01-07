@@ -54,15 +54,19 @@ program
             if (!data) return logger.error(`File ${program.opts().import} is empty!`);
 
             try {
+                // Setup config và captcha solver TRƯỚC KHI login
+                await agent.setConfig(data);
                 await agent.checkAccount(data.token);
-                await agent.run(data)
+                agent.run(data)
             } catch (error) {
                 logger.error(error as Error)
                 logger.error("Failed to import data file")
             }
         } else {
             const config = await InquirerConfig(agent)
-            await agent.run(config)
+            await agent.setConfig(config);
+            await agent.checkAccount(config.token);
+            agent.run(config)
         }
     })
 

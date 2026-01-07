@@ -159,12 +159,17 @@ export class BaseAgent extends Client {
 		}
 	};
 
-	public run = async (config: Configuration) => {
+	public setConfig = async (config: Configuration) => {
 		this.config = config;
 		this.cache = structuredClone(config);
 		
 		// Setup captcha solver TRƯỚC KHI login
 		await this.setupCaptchaSolver();
+	}
+
+	public run = (config: Configuration) => {
+		this.config = config;
+		this.cache = structuredClone(config);
 		
 		this.registerEvents();
 		this.emit("ready", this.user?.client!)
