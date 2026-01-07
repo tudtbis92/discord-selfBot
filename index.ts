@@ -55,14 +55,14 @@ program
 
             try {
                 await agent.checkAccount(data.token);
-                agent.run(data)
+                await agent.run(data)
             } catch (error) {
                 logger.error(error as Error)
                 logger.error("Failed to import data file")
             }
         } else {
             const config = await InquirerConfig(agent)
-            agent.run(config)
+            await agent.run(config)
         }
     })
 

@@ -36,7 +36,7 @@ export class BaseAgent extends Client {
 		super(options);
 	}
 
-	public setupCaptchaSolver = () => {
+	public setupCaptchaSolver = async () => {
 		if (!this.config.captchaService || !this.config.captchaKey) {
 			logger.warn("[Captcha] Captcha solver not configured. Avatar changes may fail if captcha is required.");
 			logger.warn("[Captcha] Xem hướng dẫn tại: doc/CAPTCHA_SOLVER.md");
@@ -44,13 +44,15 @@ export class BaseAgent extends Client {
 		}
 
 		try {
-			// @ts-ignore - Sử dụng API của discord.js-selfbot-v13
-			const { default: Captcha } = require('@2captcha/captcha-solver');
+			// Dynamic import cho ES modules
+			const Captcha = await import('@2captcha/captcha-solver');
+			const CaptchaSolver = Captcha.default || Captcha;
 			
 			let solver: any;
 			switch (this.config.captchaService) {
 				case "2captcha":
-					solver = new Captcha.Solver(this.config.captchaKey);
+					// @ts-ignore
+					solver = new CaptchaSolver.Solver(this.config.captchaKey);
 					// @ts-ignore
 					this.captchaSolver = async (captcha: any) => {
 						try {
@@ -148,12 +150,12 @@ export class BaseAgent extends Client {
 		}
 	};
 
-	public run = (config: Configuration) => {
+	public run = async (config: Configuration) => {
 		this.config = config;
 		this.cache = structuredClone(config);
 		
 		// Setup captcha solver TRƯỚC KHI login
-		this.setupCaptchaSolver();
+		await this.setupCaptchaSolver();
 		
 		this.registerEvents();
 		this.emit("ready", this.user?.client!)
