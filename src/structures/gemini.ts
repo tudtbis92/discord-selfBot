@@ -1,6 +1,59 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
 
 /**
+ * Parse and format Gemini API errors with detailed messages
+ */
+function parseGeminiError(error: any): string {
+    // Check if error has response data (common in API errors)
+    const errorMessage = error?.message || error?.toString() || 'Unknown error';
+    const errorStatus = error?.status || error?.response?.status;
+    const errorCode = error?.code || error?.response?.data?.error?.code;
+    
+    // API Key errors
+    if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid API key') || errorStatus === 401) {
+        return '🔑 Lỗi: API Key không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại API key trong file gemini.ts';
+    }
+    
+    // Quota exceeded
+    if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota') || errorStatus === 429) {
+        return '📊 Lỗi: Đã vượt quá giới hạn sử dụng (quota) của Google AI. Vui lòng đợi hoặc nâng cấp gói sử dụng';
+    }
+    
+    // Rate limit
+    if (errorMessage.includes('RATE_LIMIT_EXCEEDED') || errorMessage.includes('Too many requests')) {
+        return '⏱️ Lỗi: Gửi request quá nhanh. Vui lòng đợi một chút rồi thử lại';
+    }
+    
+    // Permission denied
+    if (errorMessage.includes('PERMISSION_DENIED') || errorStatus === 403) {
+        return '🚫 Lỗi: API Key không có quyền truy cập. Kiểm tra lại permissions hoặc enable API trong Google Cloud Console';
+    }
+    
+    // Network errors
+    if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('network')) {
+        return '🌐 Lỗi: Không thể kết nối đến Google AI. Kiểm tra kết nối internet của bạn';
+    }
+    
+    // Model not found or unavailable
+    if (errorMessage.includes('models/') || errorMessage.includes('NOT_FOUND') || errorStatus === 404) {
+        return '🤖 Lỗi: Model không tồn tại hoặc không khả dụng. Kiểm tra lại tên model trong code';
+    }
+    
+    // Content too long
+    if (errorMessage.includes('INVALID_ARGUMENT') && errorMessage.includes('too long')) {
+        return '📝 Lỗi: Nội dung quá dài. Vui lòng rút gọn tin nhắn';
+    }
+    
+    // Safety/content blocked
+    if (errorMessage.includes('SAFETY') || errorMessage.includes('blocked')) {
+        return '⚠️ Lỗi: Nội dung bị chặn do vi phạm chính sách an toàn của Google AI';
+    }
+    
+    // Generic error with details
+    return `❌ Lỗi Google AI: ${errorMessage}${errorCode ? ` (Code: ${errorCode})` : ''}`;
+}
+
+/**
  * Gemini AI Service Class using @google/genai package
  */
 class GeminiService {
@@ -8,11 +61,6 @@ class GeminiService {
     private apiKey: string;
     private chatHistories: Map<string, Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>> = new Map();
     private defaultConfig = {
-        temperature: 0.9,
-        thinkingConfig: {
-            thinkingBudget: 0,
-        },
-        responseMimeType: 'text/plain',
         safetySettings: [
             {
                 category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -34,7 +82,7 @@ class GeminiService {
     };
 
     constructor() {
-        this.apiKey = 'AIzaSyBHYJuScsU8oM77W781eaKMLJphYNmU3e0';
+        this.apiKey = 'AIzaSyBwosSHpJCd_IUkRQadX0f59rnyUxDAgbI';
         
         if (!this.apiKey) {
             console.warn('⚠️ GEMINI_API_KEY is not configured');
@@ -67,8 +115,83 @@ class GeminiService {
             const rawResponse = response.text || '';
             return this.cleanResponse(rawResponse);
         } catch (error) {
-            console.error('❌ Error generating response from Gemini:', error);
-            throw error;
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+    }
+
+    /**
+     * Generate response with system instruction and conversation history
+     * @param prompt User's current message
+     * @param systemInstruction System instruction for AI behavior
+     * @param history Previous conversation history
+     */
+    async generateResponseWithHistory(
+        prompt: string, 
+        systemInstruction: string,
+        history: Array<{ role: 'user' | 'assistant'; content: string }>
+    ): Promise<string> {
+        try {
+            // Chuyển đổi history sang format của Gemini
+            const contents = history.map(msg => ({
+                role: msg.role === 'user' ? 'user' as const : 'model' as const,
+                parts: [{ text: msg.content }]
+            }));
+
+            // Thêm tin nhắn hiện tại
+            contents.push({
+                role: 'user' as const,
+                parts: [{ text: prompt }]
+            });
+
+            const response = await this.ai.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                config: {
+                    ...this.defaultConfig,
+                    systemInstruction,
+                },
+                contents,
+            });
+
+            const rawResponse = response.text || '';
+            return this.cleanResponse(rawResponse);
+        } catch (error) {
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+    }
+
+    /**
+     * Generate response with system instruction
+     * @param prompt User's message
+     * @param systemInstruction System instruction for AI behavior
+     */
+    async generateResponseWithInstruction(prompt: string, systemInstruction: string): Promise<string> {
+        try {
+            const contents = [
+                {
+                    role: 'user' as const,
+                    parts: [{ text: prompt }]
+                }
+            ];
+
+            const response = await this.ai.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                config: {
+                    ...this.defaultConfig,
+                    systemInstruction,
+                },
+                contents,
+            });
+
+            const rawResponse = response.text || '';
+            return this.cleanResponse(rawResponse);
+        } catch (error) {
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
         }
     }
 
@@ -158,8 +281,9 @@ class GeminiService {
                 delayBetween: Math.floor(Math.random() * 3000) + 7000 // 7-10 seconds in milliseconds
             };
         } catch (error) {
-            console.error('❌ Error in Discord bot chat with delay:', error);
-            throw error;
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
         }
     }
 
@@ -262,8 +386,9 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
 
             return responseText;
         } catch (error) {
-            console.error('❌ Error in Discord bot chat:', error);
-            throw error;
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
         }
     }
 
@@ -287,8 +412,9 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
 
             return this.extractTextFromStream(response);
         } catch (error) {
-            console.error('❌ Error generating stream response from Gemini:', error);
-            throw error;
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
         }
     }
 
@@ -303,7 +429,8 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
                 }
             }
         } catch (error) {
-            console.error('❌ Error processing stream:', error);
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
         }
     }
 
@@ -348,10 +475,6 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
         try {
             const customConfig = {
                 ...this.defaultConfig,
-                temperature: config.temperature || this.defaultConfig.temperature,
-                thinkingConfig: {
-                    thinkingBudget: config.thinkingBudget || 0,
-                },
             };
 
             const contents = [
@@ -369,8 +492,9 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
 
             return response.text || '';
         } catch (error) {
-            console.error('❌ Error generating custom response:', error);
-            throw error;
+            const errorMsg = parseGeminiError(error);
+            console.error(errorMsg);
+            throw new Error(errorMsg);
         }
     }
 }
