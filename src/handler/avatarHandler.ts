@@ -1,6 +1,10 @@
 import { BaseAgent } from "../structures/BaseAgent.js";
 import { logger } from "../utils/logger.js";
 
+// Rate limiting để tránh spam và trigger captcha
+let lastAvatarUpdate = 0;
+const AVATAR_UPDATE_COOLDOWN = 60000; // 60 giây
+
 export const avatarHandler = async (agent: BaseAgent) => {
     agent.on("messageCreate", async (message) => {
         // Kiểm tra nếu không có config avatarUpdateChannelID
@@ -30,19 +34,60 @@ export const avatarHandler = async (agent: BaseAgent) => {
             return;
         }
         
+        // Kiểm tra cooldown
+        const now = Date.now();
+        if (now - lastAvatarUpdate < AVATAR_UPDATE_COOLDOWN) {
+            const remainingTime = Math.ceil((AVATAR_UPDATE_COOLDOWN - (now - lastAvatarUpdate)) / 1000);
+            try {
+                await message.reply(`⏱️ Vui lòng đợi ${remainingTime} giây trước khi cập nhật avatar tiếp.`);
+            } catch (e) {
+                logger.warn(`Cooldown active: ${remainingTime}s remaining`);
+            }
+            return;
+        }
+        
         try {
             logger.info(`Updating bot avatar from: ${attachment.url}`);
-            await agent.user?.setAvatar(attachment.url);
+            
+            // Download image trước để kiểm tra
+            const response = await fetch(attachment.url);
+            if (!response.ok) {
+                throw new Error(`Failed to download image: ${response.statusText}`);
+            }
+            
+            const buffer = Buffer.from(await response.arrayBuffer());
+            
+            // Kiểm tra kích thước (Discord giới hạn 10MB cho avatar)
+            if (buffer.length > 10 * 1024 * 1024) {
+                await message.reply("❌ Ảnh quá lớn! Kích thước tối đa là 10MB.");
+                return;
+            }
+            
+            await agent.user?.setAvatar(buffer);
+            lastAvatarUpdate = Date.now();
             logger.sent("Bot avatar updated successfully!");
             
-            // Gửi message xác nhận (optional)
+            // Gửi message xác nhận
             await message.reply("✅ Avatar đã được cập nhật thành công!");
-        } catch (error) {
+        } catch (error: any) {
             logger.error("Failed to update bot avatar:");
             logger.error(error as Error);
             
+            let errorMessage = "❌ Không thể cập nhật avatar.";
+            
+            // Xử lý các loại lỗi cụ thể
+            if (error.message?.includes("CAPTCHA_SOLVER_NOT_IMPLEMENTED")) {
+                errorMessage = "❌ Discord yêu cầu xác minh captcha. Vui lòng:\n" +
+                    "1. Thử lại sau vài phút\n" +
+                    "2. Hoặc đổi avatar thủ công qua Discord app\n" +
+                    "3. Đảm bảo không đổi avatar quá thường xuyên";
+                logger.warn("Discord requires captcha verification for avatar change. This is a security measure.");
+            } else if (error.message?.includes("rate limit")) {
+                errorMessage = "❌ Đã bị rate limit. Vui lòng thử lại sau 10-15 phút.";
+            }
+            
             try {
-                await message.reply("❌ Không thể cập nhật avatar. Vui lòng thử lại sau.");
+                await message.reply(errorMessage);
             } catch (replyError) {
                 logger.error("Failed to send error reply:");
                 logger.error(replyError as Error);

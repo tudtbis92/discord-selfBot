@@ -36,9 +36,54 @@ export class BaseAgent extends Client {
 		super(options);
 	}
 
+	public setupCaptchaSolver = () => {
+		if (!this.config.captchaService || !this.config.captchaKey) {
+			logger.warn("Captcha solver not configured. Avatar changes may fail if captcha is required.");
+			return;
+		}
+
+		try {
+			const captchaOptions: any = {
+				captchaRetryLimit: this.config.captchaRetry || 3,
+			};
+
+			switch (this.config.captchaService) {
+				case "2captcha":
+					captchaOptions.captchaService = "2captcha";
+					captchaOptions.captchaKey = this.config.captchaKey;
+					break;
+				case "capmonster":
+					captchaOptions.captchaService = "capmonster";
+					captchaOptions.captchaKey = this.config.captchaKey;
+					break;
+				case "anti-captcha":
+					captchaOptions.captchaService = "anti-captcha";
+					captchaOptions.captchaKey = this.config.captchaKey;
+					break;
+				case "custom":
+					captchaOptions.captchaService = "custom";
+					captchaOptions.captchaKey = this.config.captchaKey;
+					break;
+				default:
+					logger.warn(`Unknown captcha service: ${this.config.captchaService}`);
+					return;
+			}
+
+			// @ts-ignore - captchaSolver không có trong type definition
+			this.options.captchaSolver = captchaOptions;
+			logger.info(`Captcha solver configured: ${this.config.captchaService}`);
+		} catch (error) {
+			logger.error("Failed to setup captcha solver:");
+			logger.error(error as Error);
+		}
+	}
+
 	public registerEvents = () => {
 		this.once("ready", async () => {
 			logger.info("Logged in as " + this.user?.displayName);
+
+			// Setup captcha solver
+			this.setupCaptchaSolver();
 
 			if (this.config.showRPC) {
 				loadPresence(this);

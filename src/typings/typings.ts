@@ -60,6 +60,11 @@ export interface Configuration {
     
     // Avatar Update Channel
     avatarUpdateChannelID?: string
+    
+    // Captcha Solver Configuration
+    captchaService?: "2captcha" | "capmonster" | "anti-captcha" | "custom"
+    captchaKey?: string
+    captchaRetry?: number // số lần thử lại, mặc định 3
 }
 // export interface Configuration {
 //     tag: string
