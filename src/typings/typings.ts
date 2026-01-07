@@ -49,6 +49,7 @@ export interface Configuration {
     token: string
     guildID: string
     channelID: string[]
+    adminID?: string
     prefix?: string
     showRPC: boolean
     
