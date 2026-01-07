@@ -51,6 +51,7 @@ export const mentionHandler = async (agent: BaseAgent) => {
     
     agent.on("messageCreate", async (message: Message) => {
         try {
+            if (message.author?.bot) return;
             // Bỏ qua tin nhắn từ chính bot
             if (message.author.id === agent.user?.id) return;
             
