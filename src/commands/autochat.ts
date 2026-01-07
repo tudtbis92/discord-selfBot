@@ -111,3 +111,5 @@ export const autochat: Commands = {
 		}
 	},
 };
+
+export default autochat;

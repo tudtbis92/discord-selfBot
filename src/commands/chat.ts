@@ -35,3 +35,5 @@ export const chat: Commands = {
 		}
 	},
 };
+
+export default chat;

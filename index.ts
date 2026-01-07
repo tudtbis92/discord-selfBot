@@ -6,7 +6,7 @@ import { logger } from "./src/utils/logger.js"
 import { Configuration, defaultConfig } from "./src/typings/typings.js"
 
 import { BaseAgent } from "./src/structures/BaseAgent.js"
-import { InquirerConfig } from "./src/structures/Inquirer.js"
+import InquirerConfig from "./src/structures/Inquirer.js"
 
 const program = new Command()
 const agent = new BaseAgent()

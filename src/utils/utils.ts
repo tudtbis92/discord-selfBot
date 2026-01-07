@@ -1,101 +1,52 @@
-import fs from "node:fs"
+// Utility functions for the bot
+import fs from "node:fs";
 import path from "node:path";
-import os from "node:os"
-import crypto from "node:crypto"
-import { CommandCondition, QuestTypes } from "../typings/typings.js";
 
-export const mapInt = (number: number, fromMIN: number, fromMAX: number, toMIN: number, toMAX: number) => { return Math.floor(((number - fromMIN) / (fromMAX - fromMIN)) * (toMAX - toMIN) + toMIN) }
+/**
+ * Generate a random integer between min and max (inclusive)
+ */
+export const ranInt = (min: number, max: number): number => {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+};
 
-export const ranInt = (min: number, max: number, abs: boolean = true) => { return abs ? Math.abs(Math.floor(Math.random() * (max - min) + min)) : Math.floor(Math.random() * (max - min) + min) };
-
-export const timeHandler = (startTime: number, endTime: number, removeDay = false) => {
-    const ms = Math.abs(startTime - endTime)
-    const sc = Math.round(ms % 86400000 % 3600000 % 60000 / 1000)
-    const mn = Math.floor(ms % 86400000 % 3600000 / 60000)
-    const hr = Math.floor(ms % 86400000 / 3600000)
-    const dy = Math.floor(ms / 86400000)
-    return (removeDay ? "" : dy + (dy > 1 ? " days " : " day ")) + hr + ":" + mn + ":" + sc
-}
-
-export const shuffleArray = <T>(array: T[]): T[] => {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array
-}
-
+/**
+ * Recursively get all files with a specific suffix in a directory
+ */
 export const getFiles = (dir: string, suffix: string): string[] => {
-    const files: fs.Dirent[] = fs.readdirSync(dir, {
-        withFileTypes: true
-    })
-
-    let commandFiles: string[] = []
-
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    let results: string[] = [];
+    
     for (const file of files) {
+        const filePath = path.join(dir, file.name);
         if (file.isDirectory()) {
-            commandFiles = [
-                ...commandFiles,
-                ...getFiles(path.join(dir, file.name), suffix)
-            ]
-        } else if (file.name.endsWith(suffix)) commandFiles.push(path.join(dir, file.name))
+            results = results.concat(getFiles(filePath, suffix));
+        } else if (file.name.endsWith(suffix)) {
+            results.push(filePath);
+        }
     }
-    return commandFiles;
-}
+    
+    return results;
+};
 
-export const copyDirectory = (sourceDir: string, destDir: string) => {
-    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true })
-    const files = fs.readdirSync(sourceDir)
+/**
+ * Copy a directory recursively
+ */
+export const copyDirectory = (src: string, dest: string): void => {
+    if (!fs.existsSync(dest)) {
+        fs.mkdirSync(dest, { recursive: true });
+    }
+    
+    const files = fs.readdirSync(src, { withFileTypes: true });
+    
     for (const file of files) {
-        const sourcePath = path.join(sourceDir, file)
-        const destPath = path.join(destDir, file)
-        if (fs.statSync(sourcePath).isDirectory()) copyDirectory(sourcePath, destPath)
-        else fs.copyFileSync(sourcePath, destPath)
+        const srcPath = path.join(src, file.name);
+        const destPath = path.join(dest, file.name);
+        
+        if (file.isDirectory()) {
+            copyDirectory(srcPath, destPath);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
     }
-}
+};
 
-export const getQuestType = (name: string): QuestTypes => {
-    const questTypeLookup: Record<string, QuestTypes> = {
-        "xp": "xp",
-        "hunt": "hunt",
-        "battle": "battle",
-        "'owo'": "owo",
-        "gamble": "gamble",
-        "action command on someone": "action",
-    };
-
-    for (const [key, value] of Object.entries(questTypeLookup)) {
-        if (name.includes(key)) value
-    }
-
-    return "unsupported";
-    /**
-     * Earn  125000 xp from hunting and battling!
-     * Manually hunt 100 times!
-     * Battle 50 times!
-     * Hunt 3 animals that are mythical rank!
-     * 
-     * Use an action command on someone 3 times!
-     * 
-     * Gamble 10 times!
-     * Have a friend use an action command on you 1 times!
-     * Have a friend pray to you 3 times!
-     * Have a friend curse you 3 times!
-     * Receive a cookie from 2 friends! 
-     */
-}
-
-export const loadQuestCommand = (callback: CommandCondition["action"]): CommandCondition => {
-    return {
-        condition: () => true,
-        action: callback
-    }
-}
-
-export const getHWID = () => {
-    return crypto.createHash("sha256").update([
-        os.platform(),
-        os.hostname(),
-        os.userInfo().username,
-    ].join("")).digest("hex")
-}

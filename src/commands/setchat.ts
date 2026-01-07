@@ -41,3 +41,5 @@ export const setchat: Commands = {
 		);
 	},
 };
+
+export default setchat;

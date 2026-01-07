@@ -8,3 +8,5 @@ const configCommand: Commands = {
         
     },
 }
+
+export default configCommand;

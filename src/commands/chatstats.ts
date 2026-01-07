@@ -53,3 +53,5 @@ export const chatstats: Commands = {
 		return msg.reply({ embeds: [embed] });
 	},
 };
+
+export default chatstats;

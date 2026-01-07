@@ -25,50 +25,18 @@ export type popupOptions = Notification
     | NotifySend.Notification
     | Growl.Notification;
 
-export type NotifierCondition = {
-    condition: Configuration["wayNotify"][number]
-    callback: () => any
-}
-
-export type CommandCondition = {
-    condition: () => boolean;
-    action: () => any;
-};
-
 export type Commands = {
     name: string;
     description: string;
     execute: (agent: BaseAgent, message: Message, ...args: string[]) => any;
 };
 
-export type QuestTypes = "xp" | "hunt" | "battle" | "owo" | "action" | "gamble" | "unsupported"
-
 export const defaultConfig: Configuration = {
     username: "",
     token: "",
     guildID: "",
     channelID: [""],
-    wayNotify: ["webhook"],
-    musicPath: "",
-    webhookURL: "",
     prefix: "!",
-    adminID: "",
-    captchaAPI: "2captcha",
-    apiKey: "",
-    autoPray: ["pray"],
-    autoGem: 1,
-    autoCrate: true,
-    autoFCrate: true,
-    autoQuote: ["owo", "quote"],
-    autoDaily: true,
-    autoQuest: true,
-    autoCookie: true,
-    autoClover: true,
-    autoOther: ["run", "pup", "piku"],
-    autoSell: true,
-    autoSleep: true,
-    autoReload: true,
-    autoResume: true,
     showRPC: true,
     
     // Auto Chat mặc định
@@ -81,35 +49,7 @@ export interface Configuration {
     token: string
     guildID: string
     channelID: string[]
-    quoteChannelID?: string[]
-    caucaChannelID?: string
-    bancaChannelID?: string
-    // userNotify?: string
-    // apiUser?: string
-    // apiKey?: string
-    // apiNCAI?: string
-    // cmdPrefix?: string
-    wayNotify: Array<"webhook" | "dms" | "call" | "music" | "popup">
-    webhookURL?: string
-    musicPath?: string
     prefix?: string
-    adminID?: string
-    captchaAPI?: "2captcha" | "anticaptcha"
-    apiKey: string
-    autoPray: string[]
-    autoGem: 0 | 1 | -1
-    autoCrate?: boolean
-    autoFCrate?: boolean
-    autoQuote: Array<"owo" | "quote">
-    autoDaily: boolean
-    autoQuest: boolean
-    autoCookie: boolean
-    autoClover: boolean
-    autoSell: boolean
-    autoOther: Array<"run" | "pup" | "piku">
-    autoSleep: boolean
-    autoReload: boolean
-    autoResume: boolean
     showRPC: boolean
     
     // Auto Chat với Gemini AI

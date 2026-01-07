@@ -5,10 +5,7 @@ export const commandHandler = async (agent: BaseAgent) => {
     agent.on("messageCreate", async (message) => {
         if (!agent.config.prefix || !message.content.startsWith(agent.config.prefix))
             return;
-        if (
-            message.author.id != agent.config.adminID &&
-            message.author.id != message.client.user?.id
-        )
+        if (message.author.id != message.client.user?.id)
             return;
 
         logger.debug(message.author.username + " executed a command: " + message.content);  
