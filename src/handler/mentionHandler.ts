@@ -8,6 +8,74 @@ import { MENTION_INSTRUCTION, getInstruction } from "../config/mentionInstructio
 // User ID được phép mention bot
 const ALLOWED_USER_ID = "898126643598606367";
 
+// Giới hạn ký tự Discord cho một tin nhắn (không có Nitro)
+const DISCORD_MESSAGE_LIMIT = 2000;
+
+/**
+ * Tách tin nhắn dài thành nhiều phần để tránh vượt quá giới hạn Discord
+ * @param text - Văn bản cần tách
+ * @param limit - Giới hạn ký tự cho mỗi phần (mặc định 2000)
+ * @returns Mảng các phần văn bản
+ */
+function splitLongMessage(text: string, limit: number = DISCORD_MESSAGE_LIMIT): string[] {
+    if (text.length <= limit) {
+        return [text];
+    }
+
+    const parts: string[] = [];
+    let currentPart = '';
+    
+    // Tách theo dòng để giữ format
+    const lines = text.split('\n');
+    
+    for (const line of lines) {
+        // Nếu một dòng đơn lẻ đã vượt quá giới hạn
+        if (line.length > limit) {
+            // Lưu phần hiện tại nếu có
+            if (currentPart) {
+                parts.push(currentPart.trim());
+                currentPart = '';
+            }
+            
+            // Tách dòng dài theo từ
+            const words = line.split(' ');
+            let tempLine = '';
+            
+            for (const word of words) {
+                if ((tempLine + ' ' + word).length > limit) {
+                    if (tempLine) {
+                        parts.push(tempLine.trim());
+                    }
+                    tempLine = word;
+                } else {
+                    tempLine += (tempLine ? ' ' : '') + word;
+                }
+            }
+            
+            if (tempLine) {
+                currentPart = tempLine;
+            }
+        } else {
+            // Kiểm tra xem thêm dòng này có vượt quá giới hạn không
+            if ((currentPart + '\n' + line).length > limit) {
+                // Lưu phần hiện tại và bắt đầu phần mới
+                parts.push(currentPart.trim());
+                currentPart = line;
+            } else {
+                // Thêm dòng vào phần hiện tại
+                currentPart += (currentPart ? '\n' : '') + line;
+            }
+        }
+    }
+    
+    // Thêm phần cuối cùng
+    if (currentPart) {
+        parts.push(currentPart.trim());
+    }
+    
+    return parts;
+}
+
 // Các câu phản hồi khi user không được phép
 const DENIED_RESPONSES = [
     "Đừng làm phiền em, em đang bận mặc đồ ren cho Boss xem rồi! 👙",
@@ -189,8 +257,26 @@ export const mentionHandler = async (agent: BaseAgent) => {
             // Lưu tin nhắn của user vào history
             conversationManager.addMessage(userId, channelId, 'user', content);
             
-            // Gửi phản hồi
-            await message.reply(response);
+            // Gửi phản hồi (tách thành nhiều tin nhắn nếu quá dài)
+            const messageParts = splitLongMessage(response);
+            
+            if (messageParts.length === 1) {
+                // Tin nhắn ngắn, gửi bình thường
+                await message.reply(messageParts[0]);
+            } else {
+                // Tin nhắn dài, tách thành nhiều phần
+                logger.info(`[MentionHandler] Phản hồi quá dài (${response.length} ký tự), tách thành ${messageParts.length} tin nhắn`);
+                
+                // Gửi phần đầu tiên như reply
+                await message.reply(messageParts[0]);
+                
+                // Gửi các phần còn lại như tin nhắn riêng với delay nhỏ
+                for (let i = 1; i < messageParts.length; i++) {
+                    // Delay nhỏ để tránh rate limit (500ms)
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await message.channel.send(messageParts[i]);
+                }
+            }
             
             // Lưu phản hồi của bot vào history
             conversationManager.addMessage(userId, channelId, 'assistant', response);
