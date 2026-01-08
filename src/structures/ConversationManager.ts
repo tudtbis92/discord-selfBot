@@ -8,6 +8,7 @@ interface Conversation {
     channelId: string;
     history: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>;
     lastActivity: number;
+    silentMode: boolean; // Bot sẽ không phản hồi khi ở chế độ silent
 }
 
 /**
@@ -48,6 +49,7 @@ export class ConversationManager {
                 channelId,
                 history: [],
                 lastActivity: Date.now(),
+                silentMode: false,
             });
             logger.info(`[ConversationManager] Bắt đầu conversation mới: ${key}`);
         }
@@ -113,6 +115,55 @@ export class ConversationManager {
             role: msg.role,
             content: msg.content,
         }));
+    }
+
+    /**
+     * Xóa lịch sử chat nhưng giữ conversation
+     */
+    clearHistory(userId: string, channelId: string): void {
+        const key = this.getConversationKey(userId, channelId);
+        const conv = this.conversations.get(key);
+        
+        if (conv) {
+            conv.history = [];
+            logger.info(`[ConversationManager] Đã xóa lịch sử chat: ${key}`);
+        }
+    }
+
+    /**
+     * Bật chế độ silent (bot sẽ không phản hồi)
+     */
+    enableSilentMode(userId: string, channelId: string): void {
+        const key = this.getConversationKey(userId, channelId);
+        const conv = this.conversations.get(key);
+        
+        if (conv) {
+            conv.silentMode = true;
+            logger.info(`[ConversationManager] Đã bật silent mode: ${key}`);
+        }
+    }
+
+    /**
+     * Tắt chế độ silent
+     */
+    disableSilentMode(userId: string, channelId: string): void {
+        const key = this.getConversationKey(userId, channelId);
+        const conv = this.conversations.get(key);
+        
+        if (conv) {
+            conv.silentMode = false;
+            logger.info(`[ConversationManager] Đã tắt silent mode: ${key}`);
+        }
+    }
+
+    /**
+     * Kiểm tra xem conversation có đang ở silent mode không
+     */
+    isSilentMode(userId: string, channelId: string): boolean {
+        const key = this.getConversationKey(userId, channelId);
+        const conv = this.conversations.get(key);
+        
+        return conv?.silentMode ?? false;
     }
 
     /**

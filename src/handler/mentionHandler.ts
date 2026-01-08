@@ -96,6 +96,8 @@ export const mentionHandler = async (agent: BaseAgent) => {
             // Nếu được mention, bắt đầu/tiếp tục conversation
             if (isMentioned) {
                 conversationManager.startConversation(userId, channelId);
+                // Khi mention, tự động tắt silent mode nếu đang bật
+                conversationManager.disableSilentMode(userId, channelId);
                 logger.info(`[MentionHandler] ${isMentioned && !hasActiveConv ? 'Bắt đầu' : 'Tiếp tục'} conversation với ${message.author.tag} trong channel ${message.channel.id}`);
             }
             
@@ -110,6 +112,49 @@ export const mentionHandler = async (agent: BaseAgent) => {
             }
             
             logger.debug(`[MentionHandler] Nội dung: ${content}`);
+            
+            // Kiểm tra xem có phải lệnh yên lặng không (chỉ khi có conversation active)
+            const silentKeywords = [
+                'yên lặng',
+                'im lặng', 
+                'đừng nói',
+                'dừng nói',
+                'ngừng nói',
+                'ngưng nói',
+                'đừng phản hồi',
+                'dừng phản hồi',
+                'ngừng phản hồi',
+                'đang chat với người khác',
+                'đang nói chuyện với người khác',
+                'đang bận',
+                'tạm dừng',
+                'stop',
+                'quiet',
+                'silent',
+                'shut up',
+                'be quiet'
+            ];
+            
+            const contentLower = content.toLowerCase();
+            const isSilentCommand = silentKeywords.some(keyword => contentLower.includes(keyword));
+            
+            if (isSilentCommand && hasActiveConv) {
+                // Clear lịch sử chat và bật silent mode
+                conversationManager.clearHistory(userId, channelId);
+                conversationManager.enableSilentMode(userId, channelId);
+                
+                logger.info(`[MentionHandler] Đã nhận lệnh yên lặng từ ${message.author.tag}. Clear cache và vào silent mode.`);
+                
+                // Phản hồi xác nhận
+                await message.reply("Dạ em hiểu rồi ạ, em sẽ yên lặng. Khi nào Boss muốn em nói chuyện lại thì cứ gọi em nhé! 🤫💕");
+                return;
+            }
+            
+            // Kiểm tra xem có đang ở silent mode không (chỉ áp dụng cho tin nhắn không mention)
+            if (!isMentioned && conversationManager.isSilentMode(userId, channelId)) {
+                logger.info(`[MentionHandler] Đang ở silent mode, không phản hồi tin nhắn từ ${message.author.tag}`);
+                return;
+            }
             
             // Hiển thị typing indicator
             await message.channel.sendTyping();
