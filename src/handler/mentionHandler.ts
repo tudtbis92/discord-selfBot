@@ -11,6 +11,72 @@ const ALLOWED_USER_ID = "898126643598606367";
 // Giới hạn ký tự Discord cho một tin nhắn (không có Nitro)
 const DISCORD_MESSAGE_LIMIT = 2000;
 
+// Cache để theo dõi số lần phản hồi từ chối cho mỗi user
+interface DeniedUserCache {
+    count: number;
+    firstDeniedAt: number;
+}
+
+const deniedUsersCache = new Map<string, DeniedUserCache>();
+const CACHE_EXPIRY_TIME = 60 * 60 * 1000; // 1 giờ
+const MAX_DENIED_RESPONSES = 2; // Số lần phản hồi từ chối tối đa
+
+/**
+ * Dọn dẹp cache các user đã hết thời gian
+ */
+function cleanupDeniedUsersCache(): void {
+    const now = Date.now();
+    const toDelete: string[] = [];
+    
+    for (const [userId, data] of deniedUsersCache.entries()) {
+        if (now - data.firstDeniedAt > CACHE_EXPIRY_TIME) {
+            toDelete.push(userId);
+        }
+    }
+    
+    if (toDelete.length > 0) {
+        toDelete.forEach(id => deniedUsersCache.delete(id));
+        logger.info(`[MentionHandler] Đã xóa ${toDelete.length} user từ denied cache sau 1 giờ`);
+    }
+}
+
+/**
+ * Kiểm tra và cập nhật cache cho user bị từ chối
+ * @returns true nếu nên phản hồi, false nếu nên bỏ qua
+ */
+function shouldRespondToDeniedUser(userId: string): boolean {
+    const cached = deniedUsersCache.get(userId);
+    
+    if (!cached) {
+        // Lần đầu tiên, thêm vào cache
+        deniedUsersCache.set(userId, {
+            count: 1,
+            firstDeniedAt: Date.now()
+        });
+        return true;
+    }
+    
+    // Kiểm tra xem cache đã hết hạn chưa
+    if (Date.now() - cached.firstDeniedAt > CACHE_EXPIRY_TIME) {
+        // Cache hết hạn, reset lại
+        deniedUsersCache.set(userId, {
+            count: 1,
+            firstDeniedAt: Date.now()
+        });
+        return true;
+    }
+    
+    // Kiểm tra số lần đã phản hồi
+    if (cached.count >= MAX_DENIED_RESPONSES) {
+        // Đã phản hồi đủ 2 lần, bỏ qua
+        return false;
+    }
+    
+    // Tăng count và phản hồi
+    cached.count++;
+    return true;
+}
+
 /**
  * Tách tin nhắn dài thành nhiều phần để tránh vượt quá giới hạn Discord
  * @param text - Văn bản cần tách
@@ -117,6 +183,16 @@ export const mentionHandler = async (agent: BaseAgent) => {
     const geminiService = new GeminiService();
     const conversationManager = new ConversationManager();
     
+    // Thiết lập cleanup định kỳ cho denied users cache (mỗi 10 phút)
+    const cleanupInterval = setInterval(() => {
+        cleanupDeniedUsersCache();
+    }, 10 * 60 * 1000);
+    
+    // Cleanup khi process kết thúc
+    process.on('exit', () => {
+        clearInterval(cleanupInterval);
+    });
+    
     agent.on("messageCreate", async (message: Message) => {
         try {
             if (message.author?.bot) return;
@@ -133,11 +209,20 @@ export const mentionHandler = async (agent: BaseAgent) => {
             if (userId !== ALLOWED_USER_ID) {
                 // Nếu được mention thì phản hồi từ chối sau delay random
                 if (isMentioned) {
+                    // Kiểm tra cache xem có nên phản hồi không
+                    if (!shouldRespondToDeniedUser(userId)) {
+                        logger.info(`[MentionHandler] User ${message.author.tag} (${userId}) đã bị từ chối ${MAX_DENIED_RESPONSES} lần. Bỏ qua không phản hồi.`);
+                        return;
+                    }
+                    
                     // Random delay từ 15-50 giây (15000-50000ms)
                     const delayMs = Math.floor(Math.random() * (50000 - 15000 + 1)) + 15000;
                     const delaySec = (delayMs / 1000).toFixed(1);
                     
-                    logger.info(`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Delay ${delaySec}s trước khi từ chối...`);
+                    const cached = deniedUsersCache.get(userId);
+                    const deniedCount = cached?.count ?? 1;
+                    
+                    logger.info(`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Lần từ chối ${deniedCount}/${MAX_DENIED_RESPONSES}. Delay ${delaySec}s...`);
                     
                     // Hiển thị typing indicator trong khi delay
                     await message.channel.sendTyping();
@@ -148,7 +233,7 @@ export const mentionHandler = async (agent: BaseAgent) => {
                     // Gửi phản hồi từ chối
                     const randomResponse = DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
                     await message.reply(randomResponse);
-                    logger.info(`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s`);
+                    logger.info(`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s (${deniedCount}/${MAX_DENIED_RESPONSES})`);
                 }
                 return;
             }
