@@ -4,6 +4,7 @@ import { logger } from "../utils/logger.js";
 import GeminiService from "../structures/gemini.js";
 import { ConversationManager } from "../structures/ConversationManager.js";
 import { MENTION_INSTRUCTION, getInstruction } from "../config/mentionInstruction.js";
+import { setDeniedUsersCache } from "./welcomeHandler.js";
 
 // User ID được phép mention bot
 const ALLOWED_USER_ID = "898126643598606367";
@@ -12,14 +13,14 @@ const ALLOWED_USER_ID = "898126643598606367";
 const DISCORD_MESSAGE_LIMIT = 2000;
 
 // Cache để theo dõi số lần phản hồi từ chối cho mỗi user
-interface DeniedUserCache {
+export interface DeniedUserCache {
     count: number;
     firstDeniedAt: number;
 }
 
-const deniedUsersCache = new Map<string, DeniedUserCache>();
+export const deniedUsersCache = new Map<string, DeniedUserCache>();
 const CACHE_EXPIRY_TIME = 60 * 60 * 1000; // 1 giờ
-const MAX_DENIED_RESPONSES = 2; // Số lần phản hồi từ chối tối đa
+export const MAX_DENIED_RESPONSES = 2; // Số lần phản hồi từ chối tối đa
 
 // Cache cho temporary allowed users
 interface TempAllowedUser {
@@ -277,6 +278,9 @@ const DENIED_RESPONSES = [
 export const mentionHandler = async (agent: BaseAgent) => {
     const geminiService = new GeminiService();
     const conversationManager = new ConversationManager();
+    
+    // Share denied cache với welcomeHandler
+    setDeniedUsersCache(deniedUsersCache, MAX_DENIED_RESPONSES);
     
     // Thiết lập cleanup định kỳ cho denied users cache và temp users (mỗi 10 phút)
     const cleanupInterval = setInterval(() => {

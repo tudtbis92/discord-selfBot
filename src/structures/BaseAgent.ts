@@ -17,6 +17,7 @@ import { loadCommands } from "../feats/command.js";
 import { commandHandler } from "../handler/commandHandler.js";
 import { mentionHandler } from "../handler/mentionHandler.js";
 import { avatarHandler } from "../handler/avatarHandler.js";
+import { welcomeHandler } from "../handler/welcomeHandler.js";
 import { AutoChatManager } from "../feats/autoChat.js";
 
 export class BaseAgent extends Client {
@@ -139,6 +140,7 @@ export class BaseAgent extends Client {
 		commandHandler(this);
 		mentionHandler(this);
 		avatarHandler(this);
+		welcomeHandler(this);
 	};
 
 	public checkAccount = (token?: string): Promise<Client> => {
