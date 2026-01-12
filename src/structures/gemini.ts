@@ -87,7 +87,7 @@ class GeminiService {
     };
 
     constructor() {
-        this.apiKey = 'AIzaSyBwosSHpJCd_IUkRQadX0f59rnyUxDAgbI';
+        this.apiKey = 'AIzaSyDuPkN2z8OdKqR_Fb7jtnQM9U5Gb__gcqo';
         
         if (!this.apiKey) {
             console.warn('⚠️ GEMINI_API_KEY is not configured');
