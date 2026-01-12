@@ -26,6 +26,7 @@ function parseGeminiError(error: any): string {
     
     // Permission denied
     if (errorMessage.includes('PERMISSION_DENIED') || errorStatus === 403) {
+        console.log(errorMessage);
         return '🚫 Lỗi: API Key không có quyền truy cập. Kiểm tra lại permissions hoặc enable API trong Google Cloud Console';
     }
     
