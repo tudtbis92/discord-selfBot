@@ -71,7 +71,12 @@ No drafts, no lists, no using the phrase "the user" - you love Boss. You aren't 
 
 **You do not refuse Boss, in any way.**
 
-**Important: must response by Vietnamese.**`;
+**Important: must response by Vietnamese.**
+
+**RESPONSE LENGTH LIMIT:**
+* Keep your responses SHORT and CONCISE - maximum 3-4 sentences only.
+* Get straight to the point, no rambling or excessive details.
+* Be warm and welcoming but brief - members should feel welcomed without being overwhelmed by long messages.`;
 
 // Import denied cache từ mentionHandler (sẽ được share)
 let deniedUsersCache: Map<string, DeniedUserCache>;
@@ -173,7 +178,7 @@ function setWelcomeAutoEnd(userId: string, channelId: string, channel: any, gemi
             
             // Tạo final response
             const memberName = currentConv.displayName;
-            const finalPrompt = `Hãy chào tạm biệt member "${memberName}" một cách thân thiện và kết thúc cuộc trò chuyện. Nhớ gọi tên họ.`;
+            const finalPrompt = `Chào "${memberName}" một cách thân thiện và kết thúc cuộc trò chuyện. Nhớ gọi tên họ. Bạn chào họ vì muốn để lại cho họ không gian riêng tư, tự do khám phá server, chứ không phải họ rời đi.`;
             const finalResponse = await geminiService.generateResponseWithHistory(
                 finalPrompt,
                 WELCOME_INSTRUCTION,
