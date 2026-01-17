@@ -4,6 +4,9 @@ import { logger } from "../utils/logger.js";
 import GeminiService from "../structures/gemini.js";
 import type { DeniedUserCache } from "./mentionHandler.js";
 
+// Welcome feature toggle
+const WELCOME_ENABLED = false; // Set to true to enable welcome feature
+
 // Welcome bot configuration
 const WELCOME_BOT_ID = "678344927997853742";
 const WELCOME_GUILD_ID = "1456276853445759181";
@@ -329,6 +332,12 @@ async function handleWelcomeResponse(message: Message, geminiService: GeminiServ
  * Handler chính để xử lý welcome messages
  */
 export const welcomeHandler = async (agent: BaseAgent) => {
+    // Check if welcome feature is enabled
+    if (!WELCOME_ENABLED) {
+        logger.info("[WelcomeHandler] Welcome feature is DISABLED");
+        return;
+    }
+    
     const geminiService = new GeminiService();
     
     // Cleanup khi process kết thúc
