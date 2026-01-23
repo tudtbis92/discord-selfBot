@@ -5,7 +5,7 @@ import GeminiService from "../structures/gemini.js";
 import type { DeniedUserCache } from "./mentionHandler.js";
 
 // Welcome feature toggle
-const WELCOME_ENABLED = true; // Set to true to enable welcome feature
+const WELCOME_ENABLED = false; // Set to true to enable welcome feature
 
 // Welcome bot configuration
 const WELCOME_BOT_ID = "493716749342998541";
