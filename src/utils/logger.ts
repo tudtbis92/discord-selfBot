@@ -7,7 +7,7 @@ class CustomLogger {
 	private static instance: CustomLogger;
 
 	constructor() {
-		const { combine, printf, timestamp, errors, uncolorize } = format;
+		const { combine, printf, timestamp, errors } = format;
 
 		const levelFormats: { [key: string]: string } = {
 			alert: chalk.red('[ALERT]'),
@@ -32,17 +32,6 @@ class CustomLogger {
 				: `${formattedTimestamp} ${levelLabel} ${level == 'debug' ? chalk.blackBright(message) : message}`;
 		});
 
-		// ----- VÀ SỬA LỖI Ở ĐÂY -----
-		const fileFormat = printf((info: TransformableInfo) => {
-			const { level, timestamp, stack } = info;
-			// Ép kiểu `message` một cách an toàn
-			const message = info.message as string;
-
-			return stack
-				? `[${timestamp}] [${level.toUpperCase()}] ${message}\n  Stack trace:\n    ${stack}`
-				: `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-		});
-
 		this.logger = createLogger({
 			level: 'sent',
 			levels: {
@@ -59,14 +48,7 @@ class CustomLogger {
 			transports: [
 				new transports.Console({
 					format: consoleFormat,
-				}),
-				new transports.File({
-					level: 'debug',
-					filename: 'logs/console.log',
-					maxsize: 1024 * 1024 * 10,
-					maxFiles: 5,
-					zippedArchive: true,
-					format: combine(uncolorize(), fileFormat),
+					stderrLevels: ['error', 'alert'],
 				}),
 			],
 			exitOnError: false,

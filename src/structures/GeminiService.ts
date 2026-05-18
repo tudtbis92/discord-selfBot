@@ -1,4 +1,5 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
+import { logger } from '../utils/logger.js';
 
 interface GeminiApiError {
 	message?: string;
@@ -12,6 +13,123 @@ interface GeminiApiError {
 			};
 		};
 	};
+}
+
+class ApiKeyManager {
+	private keys: string[];
+	private _currentIndex = 0;
+	private failedKeys: Set<string> = new Set();
+
+	constructor(keys: string[]) {
+		this.keys = keys.length > 0 ? keys : ['AIzaSyDuPkN2z8OdKqR_Fb7jtnQM9U5Gb__gcqo'];
+	}
+
+	public getCurrentKey(): string {
+		return this.keys[this._currentIndex];
+	}
+
+	public rotateToNext(): string | null {
+		if (this.allExhausted) return null;
+
+		const start = this._currentIndex;
+		do {
+			this._currentIndex = (this._currentIndex + 1) % this.keys.length;
+			const nextKey = this.getCurrentKey();
+			if (!this.failedKeys.has(nextKey)) {
+				return nextKey;
+			}
+		} while (this._currentIndex !== start);
+
+		return null;
+	}
+
+	public markFailed(key: string): void {
+		this.failedKeys.add(key);
+	}
+
+	public resetFailed(): void {
+		this.failedKeys.clear();
+	}
+
+	public get allExhausted(): boolean {
+		return this.failedKeys.size >= this.keys.length;
+	}
+
+	public get keyCount(): number {
+		return this.keys.length;
+	}
+
+	public get currentIndex(): number {
+		return this._currentIndex;
+	}
+}
+
+function isRateLimitError(error: unknown): boolean {
+	if (!error) return false;
+	const err = error as { message?: string; status?: number; response?: { status?: number } };
+	const message = err.message || '';
+	const status = err.status || err.response?.status;
+	return (
+		message.includes('RESOURCE_EXHAUSTED') ||
+		message.includes('quota') ||
+		message.includes('RATE_LIMIT_EXCEEDED') ||
+		message.includes('Too many requests') ||
+		status === 429
+	);
+}
+
+const BACKOFF_DELAYS = [5000, 15000, 45000, 135000, 300000];
+
+async function withRetryAndRotation<T>(
+	fn: () => Promise<T>,
+	keyManager: ApiKeyManager,
+	recreateAi: (key: string) => void,
+): Promise<T> {
+	let backoffCycle = 0;
+
+	for (;;) {
+		const currentKey = keyManager.getCurrentKey();
+		try {
+			return await fn();
+		} catch (error) {
+			if (!isRateLimitError(error)) {
+				throw error;
+			}
+
+			logger.warn(
+				`[GeminiService] API Key #${String(keyManager.currentIndex + 1)} failed (rate limit).`,
+			);
+			keyManager.markFailed(currentKey);
+
+			if (!keyManager.allExhausted) {
+				const nextKey = keyManager.rotateToNext();
+				if (nextKey) {
+					logger.warn(
+						`[GeminiService] Rotating to API Key #${String(keyManager.currentIndex + 1)}...`,
+					);
+					recreateAi(nextKey);
+					continue;
+				}
+			}
+
+			if (backoffCycle >= 5) {
+				logger.error(
+					'[GeminiService] All API keys exhausted and max backoff cycles reached.',
+				);
+				throw error;
+			}
+
+			const delay = BACKOFF_DELAYS[backoffCycle];
+			logger.warn(
+				`[GeminiService] All API keys rate-limited. Waiting ${String(delay / 1000)}s before retrying (cycle ${String(backoffCycle + 1)}/5)...`,
+			);
+			await new Promise((resolve) => setTimeout(resolve, delay));
+
+			keyManager.resetFailed();
+			recreateAi(keyManager.getCurrentKey());
+			backoffCycle++;
+		}
+	}
 }
 
 /**
@@ -146,11 +264,7 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
  */
 class GeminiService {
 	private ai: GoogleGenAI;
-	private apiKey: string;
-	private chatHistories: Map<
-		string,
-		Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>
-	> = new Map();
+	private keyManager: ApiKeyManager;
 	private defaultConfig = {
 		safetySettings: [
 			{
@@ -172,44 +286,52 @@ class GeminiService {
 		],
 	};
 
-	constructor() {
-		this.apiKey = 'AIzaSyDuPkN2z8OdKqR_Fb7jtnQM9U5Gb__gcqo';
-
-		if (!this.apiKey) {
-			console.warn('⚠️ GEMINI_API_KEY is not configured');
-			throw new Error('GEMINI_API_KEY is required');
-		}
-
+	constructor(apiKeys?: string[]) {
+		this.keyManager = new ApiKeyManager(apiKeys || []);
 		this.ai = new GoogleGenAI({
-			apiKey: this.apiKey,
+			apiKey: this.keyManager.getCurrentKey(),
 		});
+	}
+
+	public setApiKeys(keys: string[]): void {
+		this.keyManager = new ApiKeyManager(keys);
+		this.recreateAi(this.keyManager.getCurrentKey());
+		logger.info(`[GeminiService] Đã cập nhật danh sách gồm ${String(keys.length)} API keys`);
+	}
+
+	private recreateAi(key: string): void {
+		this.ai = new GoogleGenAI({ apiKey: key });
 	}
 
 	/**
 	 * Send a message to Gemini and get response
 	 */
 	async generateResponse(prompt: string): Promise<string> {
-		try {
-			const contents = [
-				{
-					role: 'user' as const,
-					parts: [{ text: prompt }],
-				},
-			];
+		return withRetryAndRotation(
+			async () => {
+				const contents = [
+					{
+						role: 'user' as const,
+						parts: [{ text: prompt }],
+					},
+				];
 
-			const response = await this.ai.models.generateContent({
-				model: 'gemini-2.5-flash',
-				config: this.defaultConfig,
-				contents,
-			});
+				const response = await this.ai.models.generateContent({
+					model: 'gemini-2.5-flash',
+					config: this.defaultConfig,
+					contents,
+				});
 
-			const rawResponse = response.text || '';
-			return this.cleanResponse(rawResponse);
-		} catch (error) {
+				const rawResponse = response.text || '';
+				return this.cleanResponse(rawResponse);
+			},
+			this.keyManager,
+			this.recreateAi.bind(this),
+		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
 			throw new Error(errorMsg, { cause: error });
-		}
+		});
 	}
 
 	/**
@@ -223,35 +345,37 @@ class GeminiService {
 		systemInstruction: string,
 		history: Array<{ role: 'user' | 'assistant'; content: string }>,
 	): Promise<string> {
-		try {
-			// Chuyển đổi history sang format của Gemini
-			const contents = history.map((msg) => ({
-				role: msg.role === 'user' ? ('user' as const) : ('model' as const),
-				parts: [{ text: msg.content }],
-			}));
+		return withRetryAndRotation(
+			async () => {
+				const contents = history.map((msg) => ({
+					role: msg.role === 'user' ? ('user' as const) : ('model' as const),
+					parts: [{ text: msg.content }],
+				}));
 
-			// Thêm tin nhắn hiện tại
-			contents.push({
-				role: 'user' as const,
-				parts: [{ text: prompt }],
-			});
+				contents.push({
+					role: 'user' as const,
+					parts: [{ text: prompt }],
+				});
 
-			const response = await this.ai.models.generateContent({
-				model: 'gemini-2.5-flash',
-				config: {
-					...this.defaultConfig,
-					systemInstruction,
-				},
-				contents,
-			});
+				const response = await this.ai.models.generateContent({
+					model: 'gemini-2.5-flash',
+					config: {
+						...this.defaultConfig,
+						systemInstruction,
+					},
+					contents,
+				});
 
-			const rawResponse = response.text || '';
-			return this.cleanResponse(rawResponse);
-		} catch (error) {
+				const rawResponse = response.text || '';
+				return this.cleanResponse(rawResponse);
+			},
+			this.keyManager,
+			this.recreateAi.bind(this),
+		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
 			throw new Error(errorMsg, { cause: error });
-		}
+		});
 	}
 
 	/**
@@ -263,30 +387,34 @@ class GeminiService {
 		prompt: string,
 		systemInstruction: string,
 	): Promise<string> {
-		try {
-			const contents = [
-				{
-					role: 'user' as const,
-					parts: [{ text: prompt }],
-				},
-			];
+		return withRetryAndRotation(
+			async () => {
+				const contents = [
+					{
+						role: 'user' as const,
+						parts: [{ text: prompt }],
+					},
+				];
 
-			const response = await this.ai.models.generateContent({
-				model: 'gemini-2.5-flash',
-				config: {
-					...this.defaultConfig,
-					systemInstruction,
-				},
-				contents,
-			});
+				const response = await this.ai.models.generateContent({
+					model: 'gemini-2.5-flash',
+					config: {
+						...this.defaultConfig,
+						systemInstruction,
+					},
+					contents,
+				});
 
-			const rawResponse = response.text || '';
-			return this.cleanResponse(rawResponse);
-		} catch (error) {
+				const rawResponse = response.text || '';
+				return this.cleanResponse(rawResponse);
+			},
+			this.keyManager,
+			this.recreateAi.bind(this),
+		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
 			throw new Error(errorMsg, { cause: error });
-		}
+		});
 	}
 
 	/**
@@ -373,9 +501,10 @@ class GeminiService {
 	async chatAsDiscordBotWithDelay(
 		userId: string,
 		message: string,
+		history?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
 	): Promise<{ messages: string[]; delayBetween: number }> {
 		try {
-			const fullResponse = await this.chatAsDiscordBot(userId, message);
+			const fullResponse = await this.chatAsDiscordBot(userId, message, history);
 			const cleanedResponse = this.cleanResponse(fullResponse);
 			const messages = this.splitResponse(cleanedResponse);
 
@@ -393,14 +522,19 @@ class GeminiService {
 	/**
 	 * Chat with context for Discord bot personality
 	 */
-	async chatAsDiscordBot(userId: string, message: string): Promise<string> {
+	async chatAsDiscordBot(
+		userId: string,
+		message: string,
+		history?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+	): Promise<string> {
 		try {
+			logger.debug(`[GeminiService] chatAsDiscordBot requested for user ${userId}`);
 			// Get or create chat history for this user
-			let history = this.chatHistories.get(userId) || [];
+			const activeHistory = history || [];
 
 			// If no history, start with the bot personality setup
-			if (history.length === 0) {
-				history = [
+			if (activeHistory.length === 0) {
+				activeHistory.push(
 					{
 						role: 'user',
 						parts: [{ text: HUONG_PERSONALITY_INSTRUCTION }],
@@ -409,37 +543,41 @@ class GeminiService {
 						role: 'model',
 						parts: [{ text: HUONG_INITIAL_GREETING }],
 					},
-				];
+				);
 			}
 
 			// Add user message to history
-			history.push({
+			activeHistory.push({
 				role: 'user',
 				parts: [{ text: message }],
 			});
 
-			const response = await this.ai.models.generateContent({
-				model: 'gemini-2.5-flash',
-				config: this.defaultConfig,
-				contents: history,
-			});
+			const response = await withRetryAndRotation(
+				() =>
+					this.ai.models.generateContent({
+						model: 'gemini-2.5-flash',
+						config: this.defaultConfig,
+						contents: activeHistory,
+					}),
+				this.keyManager,
+				this.recreateAi.bind(this),
+			);
 
 			const responseText = response.text || 'Xin lỗi, tôi không thể trả lời lúc này.';
 
 			// Add AI response to history
-			history.push({
+			activeHistory.push({
 				role: 'model',
 				parts: [{ text: responseText }],
 			});
 
 			// Keep only last 20 messages to prevent context overflow
-			if (history.length > 20) {
+			if (activeHistory.length > 20) {
 				// Keep the first 2 messages (personality setup) and last 18 messages
-				history = [history[0], history[1], ...history.slice(-18)];
+				const trimmed = [activeHistory[0], activeHistory[1], ...activeHistory.slice(-18)];
+				activeHistory.length = 0;
+				activeHistory.push(...trimmed);
 			}
-
-			// Update stored history
-			this.chatHistories.set(userId, history);
 
 			return responseText;
 		} catch (error) {
@@ -461,11 +599,16 @@ class GeminiService {
 				},
 			];
 
-			const response = await this.ai.models.generateContentStream({
-				model: 'gemini-2.5-flash',
-				config: this.defaultConfig,
-				contents,
-			});
+			const response = await withRetryAndRotation(
+				() =>
+					this.ai.models.generateContentStream({
+						model: 'gemini-2.5-flash',
+						config: this.defaultConfig,
+						contents,
+					}),
+				this.keyManager,
+				this.recreateAi.bind(this),
+			);
 
 			return this.extractTextFromStream(response);
 		} catch (error) {
@@ -494,33 +637,35 @@ class GeminiService {
 	}
 
 	/**
-	 * Clear chat history for a specific user
+	 * Clear chat history for a specific user (handled by ConversationManager now)
 	 */
 	clearChatHistory(userId: string): void {
-		this.chatHistories.delete(userId);
-		console.log(`🗑️ Cleared chat history for user: ${userId}`);
+		logger.info(
+			`[GeminiService] clearChatHistory for user: ${userId} requested (handled by ConversationManager)`,
+		);
 	}
 
 	/**
-	 * Clear all chat histories
+	 * Clear all chat histories (handled by ConversationManager now)
 	 */
 	clearAllChatHistories(): void {
-		this.chatHistories.clear();
-		console.log('🗑️ Cleared all chat histories');
+		logger.info(
+			'[GeminiService] clearAllChatHistories requested (handled by ConversationManager)',
+		);
 	}
 
 	/**
 	 * Get the number of active chat sessions
 	 */
 	getActiveChatSessions(): number {
-		return this.chatHistories.size;
+		return 0;
 	}
 
 	/**
 	 * Check if service is configured
 	 */
 	isConfigured(): boolean {
-		return !!this.apiKey;
+		return !!this.keyManager.getCurrentKey();
 	}
 
 	/**
@@ -534,30 +679,34 @@ class GeminiService {
 			thinkingBudget?: number;
 		},
 	): Promise<string> {
-		try {
-			const customConfig = {
-				...this.defaultConfig,
-			};
+		return withRetryAndRotation(
+			async () => {
+				const customConfig = {
+					...this.defaultConfig,
+				};
 
-			const contents = [
-				{
-					role: 'user' as const,
-					parts: [{ text: prompt }],
-				},
-			];
+				const contents = [
+					{
+						role: 'user' as const,
+						parts: [{ text: prompt }],
+					},
+				];
 
-			const response = await this.ai.models.generateContent({
-				model: config.model || 'gemini-2.5-flash',
-				config: customConfig,
-				contents,
-			});
+				const response = await this.ai.models.generateContent({
+					model: config.model || 'gemini-2.5-flash',
+					config: customConfig,
+					contents,
+				});
 
-			return response.text || '';
-		} catch (error) {
+				return response.text || '';
+			},
+			this.keyManager,
+			this.recreateAi.bind(this),
+		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
 			throw new Error(errorMsg, { cause: error });
-		}
+		});
 	}
 }
 
@@ -580,9 +729,13 @@ export async function safeGeminiCall(prompt: string) {
 }
 
 // Helper function for Discord bot chat with error handling
-export async function safeDiscordBotChat(userId: string, message: string) {
+export async function safeDiscordBotChat(
+	userId: string,
+	message: string,
+	history?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+) {
 	try {
-		const response = await geminiService.chatAsDiscordBot(userId, message);
+		const response = await geminiService.chatAsDiscordBot(userId, message, history);
 		return { success: true, data: response };
 	} catch (error) {
 		return {
@@ -593,9 +746,13 @@ export async function safeDiscordBotChat(userId: string, message: string) {
 }
 
 // Helper function for Discord bot chat with delay and message splitting
-export async function safeDiscordBotChatWithDelay(userId: string, message: string) {
+export async function safeDiscordBotChatWithDelay(
+	userId: string,
+	message: string,
+	history?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+) {
 	try {
-		const response = await geminiService.chatAsDiscordBotWithDelay(userId, message);
+		const response = await geminiService.chatAsDiscordBotWithDelay(userId, message, history);
 		return { success: true, data: response };
 	} catch (error) {
 		return {

@@ -1,12 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import axios from 'axios';
 import { confirm } from '@inquirer/prompts';
 import { logger } from '../utils/logger.js';
 import { exec, execSync, spawn } from 'node:child_process';
-import AdmZip from 'adm-zip';
-import { copyDirectory } from '../utils/utils.js';
 import { promisify } from 'node:util';
 
 class selfUpdate {
@@ -64,11 +61,10 @@ class selfUpdate {
 				logger.info('Git detected, updating with Git!');
 				await this.gitUpdate();
 			} catch {
-				logger.info('Git not found, updating manually...');
-				await this.manualUpdate();
+				logger.warn('Git is not installed or not in PATH — skipping auto-update.');
 			}
 		} else {
-			await this.manualUpdate();
+			logger.warn('No .git directory found — skipping auto-update.');
 		}
 	};
 
@@ -87,25 +83,7 @@ class selfUpdate {
 		return Promise.resolve();
 	};
 
-	public manualUpdate = async () => {
-		try {
-			const res = await axios.get<Buffer>(
-				'https://github.com/Kyou-Izumi/advanced-discord-owo-tool-farm/archive/master.zip',
-				{
-					responseType: 'arraybuffer',
-					headers: this.baseHeaders,
-				},
-			);
 
-			const zip = new AdmZip(res.data);
-			zip.extractAllTo(os.tmpdir(), true);
-			const tempFolder = path.join(os.tmpdir(), zip.getEntries()[0].entryName);
-			copyDirectory(tempFolder, process.cwd());
-		} catch (error) {
-			logger.error('Error updating project manually:');
-			logger.error(error as Error);
-		}
-	};
 
 	private installDependencies = async () => {
 		logger.info('Installing dependencies...');

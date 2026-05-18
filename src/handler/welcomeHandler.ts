@@ -426,7 +426,7 @@ export const welcomeHandler = (agent: BaseAgent) => {
 		return;
 	}
 
-	const geminiService = new GeminiService();
+	const geminiService = new GeminiService(agent.config.geminiApiKeys);
 
 	// Cleanup khi process kết thúc
 	process.on('exit', () => {

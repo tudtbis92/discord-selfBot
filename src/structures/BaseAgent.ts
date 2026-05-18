@@ -15,7 +15,6 @@ export class BaseAgent extends Client {
 	public cache!: Configuration;
 	public activeChannel!: TextChannel;
 	public autoChatManager?: AutoChatManager;
-	private captchaSolverConfigured = false;
 
 	totalTexts = 0;
 
@@ -27,116 +26,6 @@ export class BaseAgent extends Client {
 	constructor({ options }: AgentOptions = {}) {
 		super(options);
 	}
-
-	/**
-	 * Xử lý khi Discord yêu cầu giải captcha bằng dịch vụ 2Captcha.
-	 * Resolves captcha using 2Captcha solver package.
-	 *
-	 * @private
-	 * @param {object} captcha Object chứa thông tin captcha từ Discord
-	 * @param {string} userAgent UserAgent gửi đi từ Client
-	 * @param {string} captchaKey Key API của 2Captcha
-	 * @param {any} CaptchaSolver Package giải Captcha được import động
-	 * @returns {Promise<string>} Kết quả token đã giải của captcha
-	 */
-	private async handleCaptchaChallenge(
-		captcha: { captcha_sitekey: string; captcha_rqdata?: string },
-		userAgent: string,
-		captchaKey: string,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		CaptchaSolver: any,
-	): Promise<string> {
-		try {
-			logger.info('[Captcha] Discord yêu cầu giải captcha...');
-			logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
-
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-			const solver = new CaptchaSolver.Solver(captchaKey);
-
-			logger.info('[Captcha] Đang gửi captcha đến 2Captcha...');
-
-			// Giải hCaptcha - chỉ cần 1 object parameter
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-			const result = await solver.hcaptcha({
-				sitekey: captcha.captcha_sitekey,
-				pageurl: 'https://discord.com/channels/@me',
-				data: captcha.captcha_rqdata,
-				userAgent: userAgent,
-			});
-
-			logger.sent('[Captcha] ✅ Đã giải captcha thành công!');
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-			return result.data as string;
-		} catch (error: unknown) {
-			logger.error('[Captcha] ❌ Lỗi khi giải captcha:');
-			logger.error(error as Error);
-
-			const err = error as Error;
-			if (err.message.includes('ZERO_BALANCE')) {
-				logger.error('[Captcha] Tài khoản 2Captcha hết tiền!');
-			} else if (err.message.includes('ERROR_WRONG_USER_KEY')) {
-				logger.error('[Captcha] API Key không đúng!');
-			}
-
-			throw error;
-		}
-	}
-
-	/**
-	 * Thiết lập bộ giải captcha tự động.
-	 * Sets up the automated captcha solver using 2captcha service.
-	 *
-	 * @public
-	 * @returns {Promise<boolean>} Trả về true nếu thiết lập thành công
-	 */
-	public setupCaptchaSolver = async (): Promise<boolean> => {
-		if (this.captchaSolverConfigured) {
-			logger.debug('[Captcha] Captcha solver already configured');
-			return true;
-		}
-
-		if (!this.config.captchaService || !this.config.captchaKey) {
-			logger.warn(
-				'[Captcha] Captcha solver not configured. Avatar changes may fail if captcha is required.',
-			);
-			logger.warn('[Captcha] Xem hướng dẫn tại: doc/CAPTCHA_SOLVER.md');
-			return false;
-		}
-
-		try {
-			if (this.config.captchaService !== '2captcha') {
-				logger.warn(
-					`[Captcha] Chỉ hỗ trợ 2captcha. Service ${this.config.captchaService} không được hỗ trợ.`,
-				);
-				return false;
-			}
-
-			// Dynamic import captcha solver package
-			const Captcha2 = await import('@2captcha/captcha-solver');
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-			const CaptchaSolver = Captcha2.default || Captcha2;
-
-			const captchaKey = this.config.captchaKey;
-
-			// Set captcha solver trong CLIENT OPTIONS theo API của discord.js-selfbot-v13
-			this.options.captchaSolver = async (
-				captcha: { captcha_sitekey: string; captcha_rqdata?: string },
-				userAgent: string,
-			) => {
-				return this.handleCaptchaChallenge(captcha, userAgent, captchaKey, CaptchaSolver);
-			};
-
-			this.captchaSolverConfigured = true;
-			logger.info(`[Captcha] ✅ Captcha solver configured: ${this.config.captchaService}`);
-			logger.info(`[Captcha] API Key: ${this.config.captchaKey.substring(0, 8)}...`);
-			return true;
-		} catch (error) {
-			logger.error('[Captcha] Failed to setup captcha solver:');
-			logger.error(error as Error);
-			logger.warn('[Captcha] Bạn có thể cần cài: npm install @2captcha/captcha-solver');
-			return false;
-		}
-	};
 
 	/**
 	 * Callback xử lý sự kiện 'ready' của client.
@@ -247,9 +136,6 @@ export class BaseAgent extends Client {
 	public setConfig = async (config: Configuration): Promise<void> => {
 		this.config = config;
 		this.cache = structuredClone(config);
-
-		// Setup captcha solver NGAY SAU KHI set config (TRƯỚC KHI login)
-		await this.setupCaptchaSolver();
 	};
 
 	/**

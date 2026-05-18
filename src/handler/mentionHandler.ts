@@ -465,7 +465,7 @@ async function generateAndSendResponse(
 	await message.channel.sendTyping();
 
 	const systemInstruction = getSystemInstruction(userId);
-	const history = conversationManager.getHistory(userId, channelId);
+	const history = await conversationManager.getHistory(userId, channelId);
 
 	// Tạo phản hồi từ Gemini AI với system instruction và history
 	const response = await fetchGeminiResponse(content, systemInstruction, history, geminiService);
@@ -479,16 +479,16 @@ async function generateAndSendResponse(
 	logger.debug(`[MentionHandler] Phản hồi: ${response}`);
 
 	// Lưu tin nhắn của user vào history
-	conversationManager.addMessage(userId, channelId, 'user', content);
+	await conversationManager.addMessage(userId, channelId, 'user', content);
 
 	// Gửi phản hồi (tách thành nhiều tin nhắn nếu quá dài)
 	await sendResponseParts(message, response);
 
 	// Lưu phản hồi của bot vào history
-	conversationManager.addMessage(userId, channelId, 'assistant', response);
+	await conversationManager.addMessage(userId, channelId, 'assistant', response);
 
 	// Log thời gian còn lại của conversation
-	const timeRemaining = conversationManager.getTimeRemaining(userId, channelId);
+	const timeRemaining = await conversationManager.getTimeRemaining(userId, channelId);
 	const minutesRemaining = Math.floor(timeRemaining / 60000);
 	logger.info(
 		`[MentionHandler] Đã phản hồi thành công. Conversation còn ${String(minutesRemaining)} phút`,
@@ -551,8 +551,8 @@ async function handleSilentModeCheck(
 	const isSilentCommand = silentKeywords.some((keyword) => contentLower.includes(keyword));
 
 	if (isSilentCommand && hasActiveConv) {
-		conversationManager.clearHistory(userId, channelId);
-		conversationManager.enableSilentMode(userId, channelId);
+		await conversationManager.clearHistory(userId, channelId);
+		await conversationManager.enableSilentMode(userId, channelId);
 
 		logger.info(
 			`[MentionHandler] Đã nhận lệnh yên lặng từ ${message.author.tag}. Clear cache và vào silent mode.`,
@@ -571,8 +571,8 @@ async function handleSilentModeCheck(
  * Handler xử lý khi bot được mention và quản lý cuộc trò chuyện
  */
 export const mentionHandler = (agent: BaseAgent): void => {
-	const geminiService = new GeminiService();
-	const conversationManager = new ConversationManager();
+	const geminiService = new GeminiService(agent.config.geminiApiKeys);
+	const conversationManager = new ConversationManager(agent.config.redisUri);
 
 	// Share denied cache với welcomeHandler
 	setDeniedUsersCache(deniedUsersCache, MAX_DENIED_RESPONSES);
@@ -589,7 +589,17 @@ export const mentionHandler = (agent: BaseAgent): void => {
 	// Cleanup khi process kết thúc
 	process.on('exit', () => {
 		clearInterval(cleanupInterval);
+		conversationManager.stopCleanupTask();
 	});
+
+	const handleShutdown = (): void => {
+		logger.info('[Shutdown] Nhận tín hiệu tắt máy, đang dọn dẹp tài nguyên...');
+		conversationManager.stopCleanupTask();
+		process.exit(0);
+	};
+
+	process.on('SIGINT', handleShutdown);
+	process.on('SIGTERM', handleShutdown);
 
 	agent.on('messageCreate', async (message: Message) => {
 		try {
@@ -615,7 +625,10 @@ export const mentionHandler = (agent: BaseAgent): void => {
 			}
 
 			// Kiểm tra xem có conversation active không
-			const hasActiveConv = conversationManager.hasActiveConversation(userId, channelId);
+			const hasActiveConv = await conversationManager.hasActiveConversation(
+				userId,
+				channelId,
+			);
 
 			// Chỉ xử lý nếu:
 			// 1. Được mention (bắt đầu conversation mới hoặc trong conversation)
@@ -624,9 +637,9 @@ export const mentionHandler = (agent: BaseAgent): void => {
 
 			// Nếu được mention, bắt đầu/tiếp tục conversation
 			if (isMentioned) {
-				conversationManager.startConversation(userId, channelId);
+				await conversationManager.startConversation(userId, channelId);
 				// Khi mention, tự động tắt silent mode nếu đang bật
-				conversationManager.disableSilentMode(userId, channelId);
+				await conversationManager.disableSilentMode(userId, channelId);
 				logger.info(
 					`[MentionHandler] ${!hasActiveConv ? 'Bắt đầu' : 'Tiếp tục'} conversation với ${message.author.tag} trong channel ${message.channel.id}`,
 				);
@@ -646,7 +659,7 @@ export const mentionHandler = (agent: BaseAgent): void => {
 			if (isSilent) return;
 
 			// Kiểm tra xem có đang ở silent mode không (chỉ áp dụng cho tin nhắn không mention)
-			if (!isMentioned && conversationManager.isSilentMode(userId, channelId)) {
+			if (!isMentioned && (await conversationManager.isSilentMode(userId, channelId))) {
 				logger.info(
 					`[MentionHandler] Đang ở silent mode, không phản hồi tin nhắn từ ${message.author.tag}`,
 				);
