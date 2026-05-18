@@ -1,4 +1,4 @@
-import { Message } from 'discord.js-selfbot-v13';
+import { Message, User } from 'discord.js-selfbot-v13';
 import { BaseAgent } from '../structures/BaseAgent.js';
 import { logger } from '../utils/logger.js';
 import GeminiService from '../structures/GeminiService.js';
@@ -109,7 +109,9 @@ function cleanupDeniedUsersCache(): void {
 
 	if (toDelete.length > 0) {
 		toDelete.forEach((id) => deniedUsersCache.delete(id));
-		logger.info(`[MentionHandler] Đã xóa ${toDelete.length} user từ denied cache sau 1 giờ`);
+		logger.info(
+			`[MentionHandler] Đã xóa ${String(toDelete.length)} user từ denied cache sau 1 giờ`,
+		);
 	}
 }
 
@@ -128,7 +130,7 @@ function cleanupTempAllowedUsers(): void {
 
 	if (toDelete.length > 0) {
 		toDelete.forEach((id) => tempAllowedUsers.delete(id));
-		logger.info(`[MentionHandler] Đã xóa ${toDelete.length} temporary user sau 24 giờ`);
+		logger.info(`[MentionHandler] Đã xóa ${String(toDelete.length)} temporary user sau 24 giờ`);
 	}
 }
 
@@ -275,6 +277,45 @@ function splitLongMessage(text: string, limit: number = DISCORD_MESSAGE_LIMIT): 
 }
 
 /**
+ * Xử lý lệnh thêm user vào danh sách tạm thời của Admin.
+ */
+async function handleAddAdminCommand(
+	message: Message,
+	userId: string,
+	mentionedUsers: User[],
+): Promise<void> {
+	for (const mentionedUser of mentionedUsers) {
+		addTempAllowedUser(mentionedUser.id, userId);
+	}
+
+	const userNames = mentionedUsers.map((u) => u.tag).join(', ');
+	await message.reply(`Dạ, em đã ghi nhớ! Em sẽ nói chuyện với ${userNames} ạ! 💕`);
+	logger.info(
+		`[MentionHandler] Admin đã thêm ${String(mentionedUsers.length)} temporary user(s): ${userNames}`,
+	);
+}
+
+/**
+ * Xử lý lệnh xóa user khỏi danh sách tạm thời của Admin.
+ */
+async function handleRemoveAdminCommand(message: Message, mentionedUsers: User[]): Promise<void> {
+	let removedCount = 0;
+	for (const mentionedUser of mentionedUsers) {
+		if (removeTempAllowedUser(mentionedUser.id)) {
+			removedCount++;
+		}
+	}
+
+	if (removedCount > 0) {
+		await message.reply(
+			`Dạ, em đã ngừng nói chuyện với ${String(removedCount)} người rồi ạ! 🤫`,
+		);
+	} else {
+		await message.reply(`Dạ, những người này không có trong danh sách của em ạ! 🤔`);
+	}
+}
+
+/**
  * Xử lý các lệnh quản trị của Admin như thêm/bớt temporary user.
  * Handles Admin configuration commands (add/remove temp users).
  */
@@ -311,33 +352,12 @@ async function handleAdminCommand(
 	);
 
 	if (isAddCommand && mentionedUsers.length > 0) {
-		// Thêm các user được mention vào temporary allowed
-		for (const mentionedUser of mentionedUsers) {
-			addTempAllowedUser(mentionedUser.id, userId);
-		}
-
-		const userNames = mentionedUsers.map((u) => u.tag).join(', ');
-		await message.reply(`Dạ, em đã ghi nhớ! Em sẽ nói chuyện với ${userNames} ạ! 💕`);
-		logger.info(
-			`[MentionHandler] Admin đã thêm ${mentionedUsers.length} temporary user(s): ${userNames}`,
-		);
+		await handleAddAdminCommand(message, userId, mentionedUsers);
 		return true;
 	}
 
 	if (isRemoveCommand && mentionedUsers.length > 0) {
-		// Xóa các user được mention khỏi temporary allowed
-		let removedCount = 0;
-		for (const mentionedUser of mentionedUsers) {
-			if (removeTempAllowedUser(mentionedUser.id)) {
-				removedCount++;
-			}
-		}
-
-		if (removedCount > 0) {
-			await message.reply(`Dạ, em đã ngừng nói chuyện với ${removedCount} người rồi ạ! 🤫`);
-		} else {
-			await message.reply(`Dạ, những người này không có trong danh sách của em ạ! 🤔`);
-		}
+		await handleRemoveAdminCommand(message, mentionedUsers);
 		return true;
 	}
 
@@ -351,7 +371,7 @@ async function handleAdminCommand(
 async function handleDeniedUserResponse(message: Message, userId: string): Promise<void> {
 	if (!shouldRespondToDeniedUser(userId)) {
 		logger.info(
-			`[MentionHandler] User ${message.author.tag} (${userId}) đã bị từ chối ${MAX_DENIED_RESPONSES} lần. Bỏ qua không phản hồi.`,
+			`[MentionHandler] User ${message.author.tag} (${userId}) đã bị từ chối ${String(MAX_DENIED_RESPONSES)} lần. Bỏ qua không phản hồi.`,
 		);
 		return;
 	}
@@ -364,7 +384,7 @@ async function handleDeniedUserResponse(message: Message, userId: string): Promi
 	const deniedCount = cached?.count ?? 1;
 
 	logger.info(
-		`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Lần từ chối ${deniedCount}/${MAX_DENIED_RESPONSES}. Delay ${delaySec}s...`,
+		`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Lần từ chối ${String(deniedCount)}/${String(MAX_DENIED_RESPONSES)}. Delay ${delaySec}s...`,
 	);
 
 	// Hiển thị typing indicator trong khi delay
@@ -377,8 +397,56 @@ async function handleDeniedUserResponse(message: Message, userId: string): Promi
 	const randomResponse = DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
 	await message.reply(randomResponse);
 	logger.info(
-		`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s (${deniedCount}/${MAX_DENIED_RESPONSES})`,
+		`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s (${String(deniedCount)}/${String(MAX_DENIED_RESPONSES)})`,
 	);
+}
+
+/**
+ * Xác định System Instruction phù hợp dựa trên vai trò của User.
+ */
+function getSystemInstruction(userId: string): string {
+	const isTempUser = isTempAllowedUser(userId);
+	return isTempUser ? TEMP_USER_INSTRUCTION : MENTION_INSTRUCTION;
+}
+
+/**
+ * Gọi API Gemini để lấy câu phản hồi từ mô hình.
+ */
+async function fetchGeminiResponse(
+	content: string,
+	systemInstruction: string,
+	history: Array<{ role: 'user' | 'assistant'; content: string }>,
+	geminiService: GeminiService,
+): Promise<string> {
+	if (history.length > 0) {
+		logger.debug(`[MentionHandler] Sử dụng ${String(history.length)} tin nhắn từ history`);
+		return geminiService.generateResponseWithHistory(content, systemInstruction, history);
+	} else {
+		logger.debug(`[MentionHandler] Conversation mới, không có history`);
+		return geminiService.generateResponseWithInstruction(content, systemInstruction);
+	}
+}
+
+/**
+ * Gửi phản hồi, tách thành các tin nhắn ngắn hơn nếu quá dài.
+ */
+async function sendResponseParts(message: Message, response: string): Promise<void> {
+	const messageParts = splitLongMessage(response);
+
+	if (messageParts.length === 1) {
+		await message.reply(messageParts[0]);
+	} else {
+		logger.info(
+			`[MentionHandler] Phản hồi quá dài (${String(response.length)} ký tự), tách thành ${String(messageParts.length)} tin nhắn`,
+		);
+
+		await message.reply(messageParts[0]);
+
+		for (let i = 1; i < messageParts.length; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			await message.channel.send(messageParts[i]);
+		}
+	}
 }
 
 /**
@@ -396,34 +464,11 @@ async function generateAndSendResponse(
 	// Hiển thị typing indicator
 	await message.channel.sendTyping();
 
-	// Lấy instruction phù hợp (khác nhau cho admin và temp users)
-	const isTempUser = isTempAllowedUser(userId);
-	const systemInstruction = isTempUser ? TEMP_USER_INSTRUCTION : MENTION_INSTRUCTION;
-
-	if (isTempUser) {
-		logger.debug(
-			`[MentionHandler] Sử dụng TEMP_USER_INSTRUCTION cho user ${message.author.tag}`,
-		);
-	}
-
-	// Lấy lịch sử cuộc trò chuyện
+	const systemInstruction = getSystemInstruction(userId);
 	const history = conversationManager.getHistory(userId, channelId);
 
 	// Tạo phản hồi từ Gemini AI với system instruction và history
-	let response: string;
-	if (history.length > 0) {
-		// Có history, sử dụng context
-		response = await geminiService.generateResponseWithHistory(
-			content,
-			systemInstruction,
-			history,
-		);
-		logger.debug(`[MentionHandler] Sử dụng ${history.length} tin nhắn từ history`);
-	} else {
-		// Không có history, conversation mới
-		response = await geminiService.generateResponseWithInstruction(content, systemInstruction);
-		logger.debug(`[MentionHandler] Conversation mới, không có history`);
-	}
+	const response = await fetchGeminiResponse(content, systemInstruction, history, geminiService);
 
 	if (!response) {
 		logger.warn('[MentionHandler] Không nhận được phản hồi từ Gemini AI');
@@ -437,27 +482,7 @@ async function generateAndSendResponse(
 	conversationManager.addMessage(userId, channelId, 'user', content);
 
 	// Gửi phản hồi (tách thành nhiều tin nhắn nếu quá dài)
-	const messageParts = splitLongMessage(response);
-
-	if (messageParts.length === 1) {
-		// Tin nhắn ngắn, gửi bình thường
-		await message.reply(messageParts[0]);
-	} else {
-		// Tin nhắn dài, tách thành nhiều phần
-		logger.info(
-			`[MentionHandler] Phản hồi quá dài (${response.length} ký tự), tách thành ${messageParts.length} tin nhắn`,
-		);
-
-		// Gửi phần đầu tiên như reply
-		await message.reply(messageParts[0]);
-
-		// Gửi các phần còn lại như tin nhắn riêng với delay nhỏ
-		for (let i = 1; i < messageParts.length; i++) {
-			// Delay nhỏ để tránh rate limit (500ms)
-			await new Promise((resolve) => setTimeout(resolve, 500));
-			await message.channel.send(messageParts[i]);
-		}
-	}
+	await sendResponseParts(message, response);
 
 	// Lưu phản hồi của bot vào history
 	conversationManager.addMessage(userId, channelId, 'assistant', response);
@@ -466,14 +491,86 @@ async function generateAndSendResponse(
 	const timeRemaining = conversationManager.getTimeRemaining(userId, channelId);
 	const minutesRemaining = Math.floor(timeRemaining / 60000);
 	logger.info(
-		`[MentionHandler] Đã phản hồi thành công. Conversation còn ${minutesRemaining} phút`,
+		`[MentionHandler] Đã phản hồi thành công. Conversation còn ${String(minutesRemaining)} phút`,
 	);
+}
+
+/**
+ * Phân tích và trích xuất ngữ cảnh liên quan của tin nhắn.
+ */
+function parseMentionContext(
+	message: Message,
+	agent: BaseAgent,
+): { userId: string; channelId: string; isMentioned: boolean; content: string } {
+	const userId = message.author.id;
+	const channelId = message.channel.id;
+	const isMentioned = message.mentions.users.has(agent.user?.id ?? '');
+
+	// Lấy nội dung tin nhắn (loại bỏ mention nếu có)
+	let content = message.content.replace(/<@!?\d+>/g, '').trim();
+	if (!content) {
+		content = 'Xin chào!';
+	}
+
+	return { userId, channelId, isMentioned, content };
+}
+
+/**
+ * Kiểm tra xem tin nhắn có chứa lệnh yêu cầu yên lặng không.
+ */
+async function handleSilentModeCheck(
+	message: Message,
+	content: string,
+	userId: string,
+	channelId: string,
+	hasActiveConv: boolean,
+	conversationManager: ConversationManager,
+): Promise<boolean> {
+	const silentKeywords = [
+		'yên lặng',
+		'im lặng',
+		'đừng nói',
+		'dừng nói',
+		'ngừng nói',
+		'ngưng nói',
+		'đừng phản hồi',
+		'dừng phản hồi',
+		'ngừng phản hồi',
+		'đang chat với người khác',
+		'đang nói chuyện với người khác',
+		'đang bận',
+		'tạm dừng',
+		'stop',
+		'quiet',
+		'silent',
+		'shut up',
+		'be quiet',
+	];
+
+	const contentLower = content.toLowerCase();
+	const isSilentCommand = silentKeywords.some((keyword) => contentLower.includes(keyword));
+
+	if (isSilentCommand && hasActiveConv) {
+		conversationManager.clearHistory(userId, channelId);
+		conversationManager.enableSilentMode(userId, channelId);
+
+		logger.info(
+			`[MentionHandler] Đã nhận lệnh yên lặng từ ${message.author.tag}. Clear cache và vào silent mode.`,
+		);
+
+		await message.reply(
+			'Dạ em hiểu rồi ạ, em sẽ yên lặng. Khi nào Boss muốn em nói chuyện lại thì cứ gọi em nhé! 🤫💕',
+		);
+		return true;
+	}
+
+	return false;
 }
 
 /**
  * Handler xử lý khi bot được mention và quản lý cuộc trò chuyện
  */
-export const mentionHandler = async (agent: BaseAgent) => {
+export const mentionHandler = (agent: BaseAgent): void => {
 	const geminiService = new GeminiService();
 	const conversationManager = new ConversationManager();
 
@@ -496,15 +593,11 @@ export const mentionHandler = async (agent: BaseAgent) => {
 
 	agent.on('messageCreate', async (message: Message) => {
 		try {
-			if (message.author?.bot) return;
+			if (message.author.bot) return;
 			// Bỏ qua tin nhắn từ chính bot
 			if (message.author.id === agent.user?.id) return;
 
-			const userId = message.author.id;
-			const channelId = message.channel.id;
-
-			// Kiểm tra xem bot có được mention không
-			const isMentioned = message.mentions.users.has(agent.user?.id ?? '');
+			const { userId, channelId, isMentioned, content } = parseMentionContext(message, agent);
 
 			// Kiểm tra xem admin có đang thêm temporary user không
 			if (userId === ALLOWED_USER_ID && isMentioned) {
@@ -535,64 +628,22 @@ export const mentionHandler = async (agent: BaseAgent) => {
 				// Khi mention, tự động tắt silent mode nếu đang bật
 				conversationManager.disableSilentMode(userId, channelId);
 				logger.info(
-					`[MentionHandler] ${isMentioned && !hasActiveConv ? 'Bắt đầu' : 'Tiếp tục'} conversation với ${message.author.tag} trong channel ${message.channel.id}`,
+					`[MentionHandler] ${!hasActiveConv ? 'Bắt đầu' : 'Tiếp tục'} conversation với ${message.author.tag} trong channel ${message.channel.id}`,
 				);
-			}
-
-			// Lấy nội dung tin nhắn (loại bỏ mention nếu có)
-			let content = message.content
-				.replace(/<@!?\d+>/g, '') // Loại bỏ mention
-				.trim();
-
-			// Nếu không có nội dung, sử dụng greeting mặc định
-			if (!content) {
-				content = 'Xin chào!';
 			}
 
 			logger.debug(`[MentionHandler] Nội dung: ${content}`);
 
 			// Kiểm tra xem có phải lệnh yên lặng không (chỉ khi có conversation active)
-			const silentKeywords = [
-				'yên lặng',
-				'im lặng',
-				'đừng nói',
-				'dừng nói',
-				'ngừng nói',
-				'ngưng nói',
-				'đừng phản hồi',
-				'dừng phản hồi',
-				'ngừng phản hồi',
-				'đang chat với người khác',
-				'đang nói chuyện với người khác',
-				'đang bận',
-				'tạm dừng',
-				'stop',
-				'quiet',
-				'silent',
-				'shut up',
-				'be quiet',
-			];
-
-			const contentLower = content.toLowerCase();
-			const isSilentCommand = silentKeywords.some((keyword) =>
-				contentLower.includes(keyword),
+			const isSilent = await handleSilentModeCheck(
+				message,
+				content,
+				userId,
+				channelId,
+				hasActiveConv,
+				conversationManager,
 			);
-
-			if (isSilentCommand && hasActiveConv) {
-				// Clear lịch sử chat và bật silent mode
-				conversationManager.clearHistory(userId, channelId);
-				conversationManager.enableSilentMode(userId, channelId);
-
-				logger.info(
-					`[MentionHandler] Đã nhận lệnh yên lặng từ ${message.author.tag}. Clear cache và vào silent mode.`,
-				);
-
-				// Phản hồi xác nhận
-				await message.reply(
-					'Dạ em hiểu rồi ạ, em sẽ yên lặng. Khi nào Boss muốn em nói chuyện lại thì cứ gọi em nhé! 🤫💕',
-				);
-				return;
-			}
+			if (isSilent) return;
 
 			// Kiểm tra xem có đang ở silent mode không (chỉ áp dụng cho tin nhắn không mention)
 			if (!isMentioned && conversationManager.isSilentMode(userId, channelId)) {
