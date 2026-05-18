@@ -28,7 +28,64 @@ export class BaseAgent extends Client {
 		super(options);
 	}
 
-	public setupCaptchaSolver = async () => {
+	/**
+	 * Xử lý khi Discord yêu cầu giải captcha bằng dịch vụ 2Captcha.
+	 * Resolves captcha using 2Captcha solver package.
+	 *
+	 * @private
+	 * @param {object} captcha Object chứa thông tin captcha từ Discord
+	 * @param {string} userAgent UserAgent gửi đi từ Client
+	 * @param {string} captchaKey Key API của 2Captcha
+	 * @param {any} CaptchaSolver Package giải Captcha được import động
+	 * @returns {Promise<string>} Kết quả token đã giải của captcha
+	 */
+	private async handleCaptchaChallenge(
+		captcha: { captcha_sitekey: string; captcha_rqdata?: string },
+		userAgent: string,
+		captchaKey: string,
+		CaptchaSolver: any,
+	): Promise<string> {
+		try {
+			logger.info('[Captcha] Discord yêu cầu giải captcha...');
+			logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
+
+			const solver = new CaptchaSolver.Solver(captchaKey);
+
+			logger.info('[Captcha] Đang gửi captcha đến 2Captcha...');
+
+			// Giải hCaptcha - chỉ cần 1 object parameter
+			const result = await solver.hcaptcha({
+				sitekey: captcha.captcha_sitekey,
+				pageurl: 'https://discord.com/channels/@me',
+				data: captcha.captcha_rqdata,
+				userAgent: userAgent,
+			});
+
+			logger.sent('[Captcha] ✅ Đã giải captcha thành công!');
+			return result.data as string;
+		} catch (error: unknown) {
+			logger.error('[Captcha] ❌ Lỗi khi giải captcha:');
+			logger.error(error as Error);
+
+			const err = error as Error;
+			if (err.message?.includes('ZERO_BALANCE')) {
+				logger.error('[Captcha] Tài khoản 2Captcha hết tiền!');
+			} else if (err.message?.includes('ERROR_WRONG_USER_KEY')) {
+				logger.error('[Captcha] API Key không đúng!');
+			}
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Thiết lập bộ giải captcha tự động.
+	 * Sets up the automated captcha solver using 2captcha service.
+	 *
+	 * @public
+	 * @returns {Promise<boolean>} Trả về true nếu thiết lập thành công
+	 */
+	public setupCaptchaSolver = async (): Promise<boolean> => {
 		if (this.captchaSolverConfigured) {
 			logger.debug('[Captcha] Captcha solver already configured');
 			return true;
@@ -57,38 +114,11 @@ export class BaseAgent extends Client {
 			const captchaKey = this.config.captchaKey;
 
 			// Set captcha solver trong CLIENT OPTIONS theo API của discord.js-selfbot-v13
-			this.options.captchaSolver = async (captcha: any, userAgent: string) => {
-				try {
-					logger.info('[Captcha] Discord yêu cầu giải captcha...');
-					logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
-
-					const solver = new CaptchaSolver.Solver(captchaKey);
-
-					logger.info('[Captcha] Đang gửi captcha đến 2Captcha...');
-
-					// Giải hCaptcha - chỉ cần 1 object parameter
-					const result = await solver.hcaptcha({
-						sitekey: captcha.captcha_sitekey,
-						pageurl: 'https://discord.com/channels/@me',
-						data: captcha.captcha_rqdata,
-						userAgent: userAgent,
-					});
-
-					logger.sent('[Captcha] ✅ Đã giải captcha thành công!');
-					return result.data;
-				} catch (error: unknown) {
-					logger.error('[Captcha] ❌ Lỗi khi giải captcha:');
-					logger.error(error as Error);
-
-					const err = error as Error;
-					if (err.message?.includes('ZERO_BALANCE')) {
-						logger.error('[Captcha] Tài khoản 2Captcha hết tiền!');
-					} else if (err.message?.includes('ERROR_WRONG_USER_KEY')) {
-						logger.error('[Captcha] API Key không đúng!');
-					}
-
-					throw error;
-				}
+			this.options.captchaSolver = async (
+				captcha: { captcha_sitekey: string; captcha_rqdata?: string },
+				userAgent: string,
+			) => {
+				return this.handleCaptchaChallenge(captcha, userAgent, captchaKey, CaptchaSolver);
 			};
 
 			this.captchaSolverConfigured = true;
@@ -103,35 +133,63 @@ export class BaseAgent extends Client {
 		}
 	};
 
-	public registerEvents = () => {
-		this.once('ready', async () => {
-			logger.info('Logged in as ' + this.user?.displayName);
+	/**
+	 * Callback xử lý sự kiện 'ready' của client.
+	 * Handles client initialization post login.
+	 *
+	 * @private
+	 * @returns {Promise<void>} Resolves when ready handlers are set up
+	 */
+	private onReady = async (): Promise<void> => {
+		logger.info('Logged in as ' + this.user?.displayName);
 
-			if (this.config.showRPC) {
-				loadPresence(this);
-				startAutoPresenceUpdate(this); // Bắt đầu auto update presence
-			}
-			if (this.config.prefix) this.commands = await loadCommands();
+		if (this.config.showRPC) {
+			loadPresence(this);
+			startAutoPresenceUpdate(this); // Bắt đầu auto update presence
+		}
+		if (this.config.prefix) {
+			this.commands = await loadCommands();
+		}
 
-			this.activeChannel = this.channels.cache.get(this.config.channelID[0]) as TextChannel;
+		this.activeChannel = this.channels.cache.get(this.config.channelID[0]) as TextChannel;
 
-			// Khởi tạo Auto Chat Manager
-			if (this.config.autoChat) {
-				this.autoChatManager = new AutoChatManager(this);
-				logger.info('[AutoChat] Đã khởi tạo Auto Chat Manager');
-			}
+		// Khởi tạo Auto Chat Manager
+		if (this.config.autoChat) {
+			this.autoChatManager = new AutoChatManager(this);
+			logger.info('[AutoChat] Đã khởi tạo Auto Chat Manager');
+		}
 
-			logger.info(`Loaded ${this.commands.size} commands`);
-			logger.info(`Running on channel: ${this.activeChannel.name}`);
+		logger.info(`Loaded ${this.commands.size} commands`);
+		logger.info(`Running on channel: ${this.activeChannel.name}`);
 
-			this.main();
-		});
-		commandHandler(this);
-		mentionHandler(this);
-		avatarHandler(this);
-		welcomeHandler(this);
+		void this.main();
 	};
 
+	/**
+	 * Đăng ký tất cả sự kiện và các handlers cho agent.
+	 * Registers event listeners and handlers.
+	 *
+	 * @public
+	 * @returns {void}
+	 */
+	public registerEvents = (): void => {
+		this.once('ready', () => {
+			void this.onReady();
+		});
+		void commandHandler(this);
+		void mentionHandler(this);
+		void avatarHandler(this);
+		void welcomeHandler(this);
+	};
+
+	/**
+	 * Kiểm tra đăng nhập tài khoản bằng token hoặc QR code.
+	 * Checks and resolves account login via token or QR code.
+	 *
+	 * @public
+	 * @param {string} [token] Token tài khoản Discord (tùy chọn)
+	 * @returns {Promise<Client>} Trả về Client sau khi login thành công
+	 */
 	public checkAccount = (token?: string): Promise<Client> => {
 		return new Promise((resolve, reject) => {
 			logger.info('Checking account...');
@@ -139,14 +197,25 @@ export class BaseAgent extends Client {
 				resolve(this);
 			});
 			try {
-				token ? this.login(token) : this.QRLogin();
+				if (token) {
+					void this.login(token);
+				} else {
+					void this.QRLogin();
+				}
 			} catch (error) {
-				reject(error);
+				reject(error as Error);
 			}
 		});
 	};
 
-	public main = async () => {
+	/**
+	 * Vòng lặp chính xử lý tác vụ auto chat định kỳ.
+	 * Main execution loop managing periodic auto chat behavior.
+	 *
+	 * @public
+	 * @returns {Promise<never>} Vòng lặp vô hạn không trả về
+	 */
+	public main = async (): Promise<never> => {
 		logger.info('[MAIN] 🚀 Bot đã khởi động - CHỈ CHẠY AUTO CHAT MODE');
 
 		// Vòng lặp chính - chỉ xử lý auto chat
@@ -161,7 +230,15 @@ export class BaseAgent extends Client {
 		}
 	};
 
-	public setConfig = async (config: Configuration) => {
+	/**
+	 * Thiết lập cấu hình Configuration cho agent.
+	 * Sets configurations for the agent.
+	 *
+	 * @public
+	 * @param {Configuration} config Đối tượng Configuration cấu hình
+	 * @returns {Promise<void>}
+	 */
+	public setConfig = async (config: Configuration): Promise<void> => {
 		this.config = config;
 		this.cache = structuredClone(config);
 
@@ -169,7 +246,16 @@ export class BaseAgent extends Client {
 		await this.setupCaptchaSolver();
 	};
 
-	public run = (_config?: Configuration) => {
+	/**
+	 * Hàm khởi chạy agent.
+	 * Runs the agent setup.
+	 *
+	 * @public
+	 * @deprecated Hàm này đã lỗi thời và được giữ lại để tương thích ngược. Cấu hình đã được xử lý tự động.
+	 * @param {Configuration} [_config] Cấu hình tùy chọn
+	 * @returns {void}
+	 */
+	public run = (_config?: Configuration): void => {
 		// Config và handlers đã được setup, không cần làm gì thêm
 		// Method này giữ lại để tương thích với code cũ
 	};
