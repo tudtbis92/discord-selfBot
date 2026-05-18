@@ -22,6 +22,11 @@ export const defaultConfig: Configuration = {
 	// Auto Chat mặc định
 	autoChat: false,
 	autoChatInterval: 4, // 4 phút
+
+	// Auto Chat Personality (Phase 4)
+	autoChatCharacter: undefined,
+	autoChatCharacterName: undefined,
+	autoChatBotIDs: undefined,
 };
 
 export interface Configuration {
@@ -37,6 +42,11 @@ export interface Configuration {
 	autoChatChannelID?: string;
 	autoChat?: boolean;
 	autoChatInterval?: number; // phút
+
+	// Auto Chat Personality (Phase 4)
+	autoChatCharacter?: string; // filename in src/config/personalities/ (e.g., "huong.txt")
+	autoChatCharacterName?: string; // display name for regex prefix cleaning (e.g., "Hương Nguyễn")
+	autoChatBotIDs?: string[]; // all 5 bot user IDs (identical across configs)
 
 	// Avatar Update Channel
 	avatarUpdateChannelID?: string;
