@@ -1,7 +1,7 @@
 import { Message } from 'discord.js-selfbot-v13';
 import { Commands } from '../typings/typings.js';
 import { BaseAgent } from '../structures/BaseAgent.js';
-import { safeDiscordBotChatWithDelay } from '../structures/gemini.js';
+import { safeDiscordBotChatWithDelay } from '../structures/GeminiService.js';
 
 export const chat: Commands = {
 	name: 'chat',

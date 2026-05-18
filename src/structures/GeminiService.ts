@@ -1,13 +1,27 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
 
+interface GeminiApiError {
+	message?: string;
+	status?: number;
+	code?: string | number;
+	response?: {
+		status?: number;
+		data?: {
+			error?: {
+				code?: string | number;
+			};
+		};
+	};
+}
+
 /**
  * Parse and format Gemini API errors with detailed messages
  */
-function parseGeminiError(error: any): string {
-	// Check if error has response data (common in API errors)
-	const errorMessage = error?.message || error?.toString() || 'Unknown error';
-	const errorStatus = error?.status || error?.response?.status;
-	const errorCode = error?.code || error?.response?.data?.error?.code;
+function parseGeminiError(err: unknown): string {
+	const error = (err || {}) as GeminiApiError;
+	const errorMessage = error.message || (typeof err === 'string' ? err : 'Unknown error');
+	const errorStatus = error.status || error.response?.status;
+	const errorCode = error.code || error.response?.data?.error?.code;
 
 	// API Key errors
 	if (
@@ -15,7 +29,7 @@ function parseGeminiError(error: any): string {
 		errorMessage.includes('invalid API key') ||
 		errorStatus === 401
 	) {
-		return '🔑 Lỗi: API Key không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại API key trong file gemini.ts';
+		return '🔑 Lỗi: API Key không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại API key trong file GeminiService.ts';
 	}
 
 	// Quota exceeded
@@ -78,7 +92,7 @@ function parseGeminiError(error: any): string {
 	}
 
 	// Generic error with details
-	return `❌ Lỗi Google AI: ${errorMessage}${errorCode ? ` (Code: ${errorCode})` : ''}`;
+	return `❌ Lỗi Google AI: ${errorMessage}${errorCode ? ` (Code: ${String(errorCode)})` : ''}`;
 }
 
 /**
@@ -148,7 +162,7 @@ class GeminiService {
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 
@@ -177,7 +191,7 @@ class GeminiService {
 			});
 
 			const response = await this.ai.models.generateContent({
-				model: 'gemini-3-pro-preview',
+				model: 'gemini-2.5-flash',
 				config: {
 					...this.defaultConfig,
 					systemInstruction,
@@ -190,7 +204,7 @@ class GeminiService {
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 
@@ -212,7 +226,7 @@ class GeminiService {
 			];
 
 			const response = await this.ai.models.generateContent({
-				model: 'gemini-3-pro-preview',
+				model: 'gemini-2.5-flash',
 				config: {
 					...this.defaultConfig,
 					systemInstruction,
@@ -225,7 +239,7 @@ class GeminiService {
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 
@@ -326,7 +340,7 @@ class GeminiService {
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 
@@ -435,7 +449,7 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 
@@ -461,14 +475,16 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 
 	/**
 	 * Helper to extract text from stream response
 	 */
-	private async *extractTextFromStream(response: any): AsyncIterable<string> {
+	private async *extractTextFromStream(
+		response: AsyncIterable<{ text?: string }>,
+	): AsyncGenerator<string, void, unknown> {
 		try {
 			for await (const chunk of response) {
 				if (chunk.text) {
@@ -544,7 +560,7 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
 		} catch (error) {
 			const errorMsg = parseGeminiError(error);
 			console.error(errorMsg);
-			throw new Error(errorMsg);
+			throw new Error(errorMsg, { cause: error });
 		}
 	}
 }

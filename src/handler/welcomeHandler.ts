@@ -1,7 +1,7 @@
 import { Message } from 'discord.js-selfbot-v13';
 import { BaseAgent } from '../structures/BaseAgent.js';
 import { logger } from '../utils/logger.js';
-import GeminiService from '../structures/gemini.js';
+import GeminiService from '../structures/GeminiService.js';
 import type { DeniedUserCache } from './mentionHandler.js';
 
 // Welcome feature toggle
