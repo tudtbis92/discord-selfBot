@@ -22,17 +22,19 @@ class selfUpdate {
 	public async checkUpdate() {
 		logger.info('Checking for update...');
 
-		const { version: currentVersion } = JSON.parse(
+		const pkg = JSON.parse(
 			fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'),
-		);
-		const {
-			data: { version: latestVersion },
-		} = await axios.get(
+		) as { version: string };
+		const currentVersion = pkg.version;
+
+		const response: { data: { version: string } } = await axios.get(
 			'https://github.com/Kyou-Izumi/advanced-discord-owo-tool-farm/raw/refs/heads/main/package.json',
 			{
 				headers: this.baseHeaders,
 			},
 		);
+		const latestVersion = response.data.version;
+
 		if (currentVersion < latestVersion) {
 			logger.info(`New version available: v${latestVersion} (current: v${currentVersion})`);
 
@@ -61,7 +63,7 @@ class selfUpdate {
 				execSync('git --version');
 				logger.info('Git detected, updating with Git!');
 				await this.gitUpdate();
-			} catch (error) {
+			} catch {
 				logger.info('Git not found, updating manually...');
 				await this.manualUpdate();
 			}
@@ -70,7 +72,7 @@ class selfUpdate {
 		}
 	};
 
-	public gitUpdate = async () => {
+	public gitUpdate = (): Promise<void> => {
 		try {
 			logger.debug('Stashing local changes...');
 			execSync('git stash');
@@ -82,11 +84,12 @@ class selfUpdate {
 			logger.error('Error updating with Git:');
 			logger.error(error as Error);
 		}
+		return Promise.resolve();
 	};
 
 	public manualUpdate = async () => {
 		try {
-			const res = await axios.get(
+			const res = await axios.get<Buffer>(
 				'https://github.com/Kyou-Izumi/advanced-discord-owo-tool-farm/archive/master.zip',
 				{
 					responseType: 'arraybuffer',
@@ -127,4 +130,7 @@ class selfUpdate {
 	};
 }
 
-export const checkUpdate = new selfUpdate().checkUpdate;
+const updater = new selfUpdate();
+export const checkUpdate = (): Promise<void> => {
+	return updater.checkUpdate();
+};
