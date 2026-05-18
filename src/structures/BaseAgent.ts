@@ -182,7 +182,7 @@ export class BaseAgent extends Client {
 			void this.onReady();
 		});
 		void commandHandler(this);
-		void mentionHandler(this);
+		mentionHandler(this);
 		void avatarHandler(this);
 		welcomeHandler(this);
 	};
