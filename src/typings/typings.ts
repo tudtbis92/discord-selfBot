@@ -1,4 +1,4 @@
-import { ClientOptions, DMChannel, Message, TextChannel } from "discord.js-selfbot-v13";
+import { ClientOptions, Message } from "discord.js-selfbot-v13";
 import { BaseAgent } from "../structures/BaseAgent.js";
 
 

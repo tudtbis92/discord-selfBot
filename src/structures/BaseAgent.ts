@@ -1,8 +1,6 @@
 import {
 	Client,
 	Collection,
-	CollectorFilter,
-	Message,
 	TextChannel,
 } from "discord.js-selfbot-v13";
 import { ranInt } from "../utils/utils.js";
@@ -63,19 +61,16 @@ export class BaseAgent extends Client {
 			const captchaKey = this.config.captchaKey;
 			
 			// Set captcha solver trong CLIENT OPTIONS theo API của discord.js-selfbot-v13
-			// @ts-ignore - options có thể được modify sau khi init
 			this.options.captchaSolver = async (captcha: any, userAgent: string) => {
 				try {
 					logger.info("[Captcha] Discord yêu cầu giải captcha...");
 					logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
 					
-					// @ts-ignore
 					const solver = new CaptchaSolver.Solver(captchaKey);
 					
 					logger.info("[Captcha] Đang gửi captcha đến 2Captcha...");
 					
 					// Giải hCaptcha - chỉ cần 1 object parameter
-					// @ts-ignore - Bỏ qua type checking cho API call
 					const result = await solver.hcaptcha({
 						sitekey: captcha.captcha_sitekey,
 						pageurl: 'https://discord.com/channels/@me',
@@ -85,13 +80,14 @@ export class BaseAgent extends Client {
 					
 					logger.sent("[Captcha] ✅ Đã giải captcha thành công!");
 					return result.data;
-				} catch (error: any) {
+				} catch (error: unknown) {
 					logger.error("[Captcha] ❌ Lỗi khi giải captcha:");
 					logger.error(error as Error);
 					
-					if (error.message?.includes('ZERO_BALANCE')) {
+					const err = error as Error;
+					if (err.message?.includes('ZERO_BALANCE')) {
 						logger.error("[Captcha] Tài khoản 2Captcha hết tiền!");
-					} else if (error.message?.includes('ERROR_WRONG_USER_KEY')) {
+					} else if (err.message?.includes('ERROR_WRONG_USER_KEY')) {
 						logger.error("[Captcha] API Key không đúng!");
 					}
 					
@@ -180,7 +176,7 @@ export class BaseAgent extends Client {
 		await this.setupCaptchaSolver();
 	}
 
-	public run = (config?: Configuration) => {
+	public run = (_config?: Configuration) => {
 		// Config và handlers đã được setup, không cần làm gì thêm
 		// Method này giữ lại để tương thích với code cũ
 	}
