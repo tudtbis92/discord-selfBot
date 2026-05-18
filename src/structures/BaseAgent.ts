@@ -1,4 +1,7 @@
 import { Client, Collection, TextChannel } from 'discord.js-selfbot-v13';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ranInt } from '../utils/utils.js';
 import { AgentOptions, Commands, Configuration } from '../typings/typings.js';
 import { logger } from '../utils/logger.js';
@@ -9,6 +12,11 @@ import { mentionHandler } from '../handler/mentionHandler.js';
 import { avatarHandler } from '../handler/avatarHandler.js';
 import { welcomeHandler } from '../handler/welcomeHandler.js';
 import { AutoChatManager } from '../feats/autoChat.js';
+import { geminiService } from './GeminiService.js';
+
+// ESM __dirname equivalent for personality file path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export class BaseAgent extends Client {
 	public config!: Configuration;
@@ -49,8 +57,48 @@ export class BaseAgent extends Client {
 
 		// Khởi tạo Auto Chat Manager
 		if (this.config.autoChat) {
-			this.autoChatManager = new AutoChatManager(this);
-			logger.info('[AutoChat] Đã khởi tạo Auto Chat Manager');
+			// Validate personality filename (path traversal mitigation T-04-01)
+			if (this.config.autoChatCharacter) {
+				const filenameValid = /^[a-zA-Z0-9._-]+$/.test(this.config.autoChatCharacter);
+				if (!filenameValid) {
+					logger.error(`[AutoChat] Invalid personality filename: ${this.config.autoChatCharacter}. Disabling AutoChat.`);
+					this.config.autoChat = false;
+				} else {
+					const personalityPath = path.resolve(__dirname, '../config/personalities', this.config.autoChatCharacter);
+					try {
+						const personalityText = fs.readFileSync(personalityPath, 'utf-8');
+
+						// Resolve bot display names for mention mapping (per D-08)
+						let mentionMapping = '';
+						if (this.config.autoChatBotIDs?.length) {
+							const mappings: string[] = [];
+							for (const id of this.config.autoChatBotIDs) {
+								try {
+									const user = await this.users.fetch(id);
+									mappings.push(`- ${user.displayName}: <@${id}>`);
+								} catch {
+									mappings.push(`- Unknown User: <@${id}>`);
+								}
+							}
+							mentionMapping = `\n\nCác thành viên bạn có thể tương tác và @mention:\n${mappings.join('\n')}`;
+						}
+
+						// Compose and inject full system instruction
+						const fullInstruction = personalityText + mentionMapping;
+						geminiService.setSystemInstruction(fullInstruction, this.config.autoChatCharacterName || '');
+						logger.info('[AutoChat] Personality loaded and system instruction set');
+					} catch {
+						logger.error(`[AutoChat] Personality file not found: ${personalityPath}. Disabling AutoChat.`);
+						this.config.autoChat = false;
+					}
+				}
+			}
+
+			// Only create AutoChatManager if autoChat is still enabled
+			if (this.config.autoChat) {
+				this.autoChatManager = new AutoChatManager(this);
+				logger.info('[AutoChat] Đã khởi tạo Auto Chat Manager');
+			}
 		}
 
 		logger.info(`Loaded ${String(this.commands.size)} commands`);
