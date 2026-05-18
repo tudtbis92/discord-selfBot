@@ -286,6 +286,9 @@ class GeminiService {
 		],
 	};
 
+	private systemInstruction: string = '';
+	private characterName: string = '';
+
 	constructor(apiKeys?: string[]) {
 		this.keyManager = new ApiKeyManager(apiKeys || []);
 		this.ai = new GoogleGenAI({
@@ -301,6 +304,15 @@ class GeminiService {
 
 	private recreateAi(key: string): void {
 		this.ai = new GoogleGenAI({ apiKey: key });
+	}
+
+	/**
+	 * Set dynamic system instruction and character name for personality injection.
+	 * Called by BaseAgent.onReady() after loading personality file.
+	 */
+	public setSystemInstruction(instruction: string, characterName: string): void {
+		this.systemInstruction = instruction;
+		this.characterName = characterName;
 	}
 
 	/**
@@ -418,18 +430,27 @@ class GeminiService {
 	}
 
 	/**
-	 * Clean response to remove any unwanted prefixes like "Hương Nguyễn:" or similar
+	 * Clean response to remove any unwanted name prefixes using dynamic regex.
+	 * Uses this.characterName to build the regex pattern at runtime.
 	 */
 	private cleanResponse(text: string): string {
 		if (!text) return text;
 
-		// Remove patterns like "Hương Nguyễn:", "Hương:", "Nguyễn Thu Hương:" at the beginning
+		// If no character name set, fall back to generic prefix removal only
+		if (!this.characterName) {
+			return text.replace(/^[^:]+:\s*/g, '').trim() || text;
+		}
+
+		// Build dynamic regex from character name (escape special regex chars)
+		const escapedName = this.characterName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+		const dynamicRegex = new RegExp(`^(${escapedName})\\s*:\\s*`, 'i');
+
 		const cleanedText = text
-			.replace(/^(Hương\s*(Nguyễn)?|Nguyễn\s*Thu\s*Hương)\s*:\s*/gi, '')
-			.replace(/^[^:]+:\s*/g, '') // Remove any "Name:" pattern at the start
+			.replace(dynamicRegex, '')
+			.replace(/^[^:]+:\s*/g, '')
 			.trim();
 
-		return cleanedText || text; // Return original if cleaning results in empty string
+		return cleanedText || text;
 	}
 
 	/**
@@ -534,16 +555,24 @@ class GeminiService {
 
 			// If no history, start with the bot personality setup
 			if (activeHistory.length === 0) {
-				activeHistory.push(
-					{
+				// Use dynamic system instruction if set, fall back to hardcoded for backward compatibility
+				if (this.systemInstruction) {
+					activeHistory.push({
 						role: 'user',
-						parts: [{ text: HUONG_PERSONALITY_INSTRUCTION }],
-					},
-					{
-						role: 'model',
-						parts: [{ text: HUONG_INITIAL_GREETING }],
-					},
-				);
+						parts: [{ text: this.systemInstruction }],
+					});
+				} else {
+					activeHistory.push(
+						{
+							role: 'user',
+							parts: [{ text: HUONG_PERSONALITY_INSTRUCTION }],
+						},
+						{
+							role: 'model',
+							parts: [{ text: HUONG_INITIAL_GREETING }],
+						},
+					);
+				}
 			}
 
 			// Add user message to history
