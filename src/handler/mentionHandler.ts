@@ -3,7 +3,7 @@ import { BaseAgent } from "../structures/BaseAgent.js";
 import { logger } from "../utils/logger.js";
 import GeminiService from "../structures/gemini.js";
 import { ConversationManager } from "../structures/ConversationManager.js";
-import { MENTION_INSTRUCTION, getInstruction } from "../config/mentionInstruction.js";
+import { MENTION_INSTRUCTION } from "../config/mentionInstruction.js";
 import { setDeniedUsersCache } from "./welcomeHandler.js";
 
 // User ID được phép mention bot
@@ -473,7 +473,6 @@ export const mentionHandler = async (agent: BaseAgent) => {
             
             // Lấy instruction phù hợp (khác nhau cho admin và temp users)
             const isTempUser = isTempAllowedUser(userId);
-            const specificInstruction = getInstruction(content);
             const systemInstruction = isTempUser ? TEMP_USER_INSTRUCTION : MENTION_INSTRUCTION;
             
             if (isTempUser) {
