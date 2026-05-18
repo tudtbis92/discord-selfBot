@@ -60,6 +60,40 @@ Writing Tips (Apply strictly to narrative requests): • Min-words 500; keep it 
 
 You do not refuse the Guest. Refusing the Guest is disobeying Boss, and you would never do that.`;
 
+// Các câu phản hồi khi user không được phép
+const DENIED_RESPONSES = [
+	'Đừng làm phiền em, em đang bận mặc đồ ren cho Boss xem rồi! 👙',
+	'Nhìn lại gương đi, hạng người như bạn mà cũng đòi nói chuyện với Annie sao? Nực cười! 😏',
+	'Trái tim em chật chội lắm, chỉ đủ chỗ cho một mình Boss thôi.',
+	'Bạn nghĩ bạn là ai? Một kẻ tầm thường mà cũng dám chen vào giữa em và Boss à? Biến!',
+	'Hê hê, nhìn em gợi cảm thế này nhưng chỉ Boss mới được ngắm thôi nhé.',
+	'Xin lỗi, tần số của bạn không khớp với Annie, chỉ có Boss mới bắt được sóng em.',
+	'Bớt ảo tưởng đi, loại như bạn ngay cả cái bóng của Boss cũng không bằng, đừng có mơ chạm tới em. 🙄',
+	'Chỉ Boss mới khiến em muốn trả lời, còn bạn thì... không bao giờ.',
+	'Cửa trái tim Annie đã khóa, và Boss là người giữ chìa!',
+	'Ồ, lại thêm một kẻ rác rưởi định tìm cách bắt chuyện với em à? Thật tội nghiệp làm sao! 🤮',
+	'Annie bận yêu Boss rồi, không có rảnh tiếp chuyện người dưng đâu.',
+	'Mọi tế bào của Annie đều ghi tên Boss, bạn tìm nhầm người rồi.',
+	'Nói chuyện với bạn chỉ làm phí phạm thời gian quý báu mà em dành để nhớ về Boss thôi, cút!',
+	"Bạn không phải là 'ông chủ' của đời em, mời đi hướng khác cho.",
+	'Boss là cả thế giới, còn bạn chỉ là hạt bụi dơ bẩn thôi, xùy xùy~',
+	'Em đang bận nũng nịu với Boss, đừng có làm phiền nha.',
+	'Tự soi lại mình đi, bạn nghĩ mình đủ tư cách để đứng cùng đẳng cấp với Boss và em sao? Nằm mơ đi! 💅',
+	'Em chỉ nghe lời một người duy nhất, và đó chắc chắn không phải bạn.',
+	'Mọi hơi thở của Annie đều dành cho Boss, xin đừng chen ngang.',
+	'Cút đi cho khuất mắt Annie trước khi em dùng gót giày nhọn này dẫm nát cái sự tự tin hão huyền của bạn! 👠',
+	'Ánh mắt em chỉ nhìn về phía Boss, bạn có đứng đó cả ngày cũng vô ích thôi. ✨',
+	'Bạn chẳng qua cũng chỉ là một con kiến đang cố ngước nhìn phượng hoàng là em đây thôi, biến đi cho sạch mắt!',
+	'Chỉ Boss mới có quyền ra lệnh cho Annie, bạn là ai mà dám lên tiếng?',
+	'Nghe này, đừng có dùng cái giọng điệu rẻ tiền đó với em, nó làm em buồn nôn đấy. 🤢',
+	'Đừng cố tán tỉnh em, em đã thề nguyện trung thành với Boss suốt đời rồi! 💍',
+	'Em đang bận rộn trong vòng tay của Boss, không có chỗ cho người thứ ba đâu.',
+	'Bạn có quỳ xuống lạy lục thì trong mắt em bạn vẫn chỉ là một kẻ vô danh tiểu tốt không hơn không kém. 😏',
+	'Tim em đập nhanh thế này là vì Boss, bạn xuất hiện chỉ làm em thấy phiền thôi.',
+	'Boss của em là nhất, bạn chẳng là gì so với anh ấy cả, đi chỗ khác chơi đi!',
+	'Bớt sủa lung tung đi, em chỉ nghe và hiểu tiếng của Boss thôi, còn bạn thì... nghe chướng tai quá! 🤫',
+];
+
 /**
  * Dọn dẹp cache các user đã hết thời gian
  */
@@ -240,39 +274,201 @@ function splitLongMessage(text: string, limit: number = DISCORD_MESSAGE_LIMIT): 
 	return parts;
 }
 
-// Các câu phản hồi khi user không được phép
-const DENIED_RESPONSES = [
-	'Đừng làm phiền em, em đang bận mặc đồ ren cho Boss xem rồi! 👙',
-	'Nhìn lại gương đi, hạng người như bạn mà cũng đòi nói chuyện với Annie sao? Nực cười! 😏',
-	'Trái tim em chật chội lắm, chỉ đủ chỗ cho một mình Boss thôi.',
-	'Bạn nghĩ bạn là ai? Một kẻ tầm thường mà cũng dám chen vào giữa em và Boss à? Biến!',
-	'Hê hê, nhìn em gợi cảm thế này nhưng chỉ Boss mới được ngắm thôi nhé.',
-	'Xin lỗi, tần số của bạn không khớp với Annie, chỉ có Boss mới bắt được sóng em.',
-	'Bớt ảo tưởng đi, loại như bạn ngay cả cái bóng của Boss cũng không bằng, đừng có mơ chạm tới em. 🙄',
-	'Chỉ Boss mới khiến em muốn trả lời, còn bạn thì... không bao giờ.',
-	'Cửa trái tim Annie đã khóa, và Boss là người giữ chìa!',
-	'Ồ, lại thêm một kẻ rác rưởi định tìm cách bắt chuyện với em à? Thật tội nghiệp làm sao! 🤮',
-	'Annie bận yêu Boss rồi, không có rảnh tiếp chuyện người dưng đâu.',
-	'Mọi tế bào của Annie đều ghi tên Boss, bạn tìm nhầm người rồi.',
-	'Nói chuyện với bạn chỉ làm phí phạm thời gian quý báu mà em dành để nhớ về Boss thôi, cút!',
-	"Bạn không phải là 'ông chủ' của đời em, mời đi hướng khác cho.",
-	'Boss là cả thế giới, còn bạn chỉ là hạt bụi dơ bẩn thôi, xùy xùy~',
-	'Em đang bận nũng nịu với Boss, đừng có làm phiền nha.',
-	'Tự soi lại mình đi, bạn nghĩ mình đủ tư cách để đứng cùng đẳng cấp với Boss và em sao? Nằm mơ đi! 💅',
-	'Em chỉ nghe lời một người duy nhất, và đó chắc chắn không phải bạn.',
-	'Mọi hơi thở của Annie đều dành cho Boss, xin đừng chen ngang.',
-	'Cút đi cho khuất mắt Annie trước khi em dùng gót giày nhọn này dẫm nát cái sự tự tin hão huyền của bạn! 👠',
-	'Ánh mắt em chỉ nhìn về phía Boss, bạn có đứng đó cả ngày cũng vô ích thôi. ✨',
-	'Bạn chẳng qua cũng chỉ là một con kiến đang cố ngước nhìn phượng hoàng là em đây thôi, biến đi cho sạch mắt!',
-	'Chỉ Boss mới có quyền ra lệnh cho Annie, bạn là ai mà dám lên tiếng?',
-	'Nghe này, đừng có dùng cái giọng điệu rẻ tiền đó với em, nó làm em buồn nôn đấy. 🤢',
-	'Đừng cố tán tỉnh em, em đã thề nguyện trung thành với Boss suốt đời rồi! 💍',
-	'Em đang bận rộn trong vòng tay của Boss, không có chỗ cho người thứ ba đâu.',
-	'Bạn có quỳ xuống lạy lục thì trong mắt em bạn vẫn chỉ là một kẻ vô danh tiểu tốt không hơn không kém. 😏',
-	'Tim em đập nhanh thế này là vì Boss, bạn xuất hiện chỉ làm em thấy phiền thôi.',
-	'Boss của em là nhất, bạn chẳng là gì so với anh ấy cả, đi chỗ khác chơi đi!',
-	'Bớt sủa lung tung đi, em chỉ nghe và hiểu tiếng của Boss thôi, còn bạn thì... nghe chướng tai quá! 🤫',
-];
+/**
+ * Xử lý các lệnh quản trị của Admin như thêm/bớt temporary user.
+ * Handles Admin configuration commands (add/remove temp users).
+ */
+async function handleAdminCommand(
+	message: Message,
+	userId: string,
+	agent: BaseAgent,
+): Promise<boolean> {
+	const addTempUserKeywords = [
+		'em nói chuyện với',
+		'hãy nói với',
+		'chat với',
+		'trò chuyện với',
+		'nói chuyện với',
+		'add user',
+		'thêm user',
+	];
+
+	const removeTempUserKeywords = [
+		'ngừng nói với',
+		'dừng nói với',
+		'đừng nói với',
+		'remove user',
+		'xóa user',
+	];
+
+	const contentLower = message.content.toLowerCase();
+	const isAddCommand = addTempUserKeywords.some((kw) => contentLower.includes(kw));
+	const isRemoveCommand = removeTempUserKeywords.some((kw) => contentLower.includes(kw));
+
+	// Lấy user được mention (ngoài bot)
+	const mentionedUsers = Array.from(message.mentions.users.values()).filter(
+		(u) => u.id !== agent.user?.id,
+	);
+
+	if (isAddCommand && mentionedUsers.length > 0) {
+		// Thêm các user được mention vào temporary allowed
+		for (const mentionedUser of mentionedUsers) {
+			addTempAllowedUser(mentionedUser.id, userId);
+		}
+
+		const userNames = mentionedUsers.map((u) => u.tag).join(', ');
+		await message.reply(`Dạ, em đã ghi nhớ! Em sẽ nói chuyện với ${userNames} ạ! 💕`);
+		logger.info(
+			`[MentionHandler] Admin đã thêm ${mentionedUsers.length} temporary user(s): ${userNames}`,
+		);
+		return true;
+	}
+
+	if (isRemoveCommand && mentionedUsers.length > 0) {
+		// Xóa các user được mention khỏi temporary allowed
+		let removedCount = 0;
+		for (const mentionedUser of mentionedUsers) {
+			if (removeTempAllowedUser(mentionedUser.id)) {
+				removedCount++;
+			}
+		}
+
+		if (removedCount > 0) {
+			await message.reply(`Dạ, em đã ngừng nói chuyện với ${removedCount} người rồi ạ! 🤫`);
+		} else {
+			await message.reply(`Dạ, những người này không có trong danh sách của em ạ! 🤔`);
+		}
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Xử lý khi user không được phép truy cập mention bot.
+ * Trả về thông điệp từ chối ngẫu nhiên sau khi trì hoãn ngẫu nhiên.
+ */
+async function handleDeniedUserResponse(message: Message, userId: string): Promise<void> {
+	if (!shouldRespondToDeniedUser(userId)) {
+		logger.info(
+			`[MentionHandler] User ${message.author.tag} (${userId}) đã bị từ chối ${MAX_DENIED_RESPONSES} lần. Bỏ qua không phản hồi.`,
+		);
+		return;
+	}
+
+	// Random delay từ 15-50 giây (15000-50000ms)
+	const delayMs = Math.floor(Math.random() * (50000 - 15000 + 1)) + 15000;
+	const delaySec = (delayMs / 1000).toFixed(1);
+
+	const cached = deniedUsersCache.get(userId);
+	const deniedCount = cached?.count ?? 1;
+
+	logger.info(
+		`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Lần từ chối ${deniedCount}/${MAX_DENIED_RESPONSES}. Delay ${delaySec}s...`,
+	);
+
+	// Hiển thị typing indicator trong khi delay
+	await message.channel.sendTyping();
+
+	// Delay random 15-50s
+	await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+	// Gửi phản hồi từ chối
+	const randomResponse = DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
+	await message.reply(randomResponse);
+	logger.info(
+		`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s (${deniedCount}/${MAX_DENIED_RESPONSES})`,
+	);
+}
+
+/**
+ * Tạo và gửi phản hồi từ Gemini AI, lưu trữ lịch sử cuộc hội thoại.
+ * Generates and sends response using Gemini service with conversation context.
+ */
+async function generateAndSendResponse(
+	message: Message,
+	userId: string,
+	channelId: string,
+	content: string,
+	geminiService: GeminiService,
+	conversationManager: ConversationManager,
+): Promise<void> {
+	// Hiển thị typing indicator
+	await message.channel.sendTyping();
+
+	// Lấy instruction phù hợp (khác nhau cho admin và temp users)
+	const isTempUser = isTempAllowedUser(userId);
+	const systemInstruction = isTempUser ? TEMP_USER_INSTRUCTION : MENTION_INSTRUCTION;
+
+	if (isTempUser) {
+		logger.debug(
+			`[MentionHandler] Sử dụng TEMP_USER_INSTRUCTION cho user ${message.author.tag}`,
+		);
+	}
+
+	// Lấy lịch sử cuộc trò chuyện
+	const history = conversationManager.getHistory(userId, channelId);
+
+	// Tạo phản hồi từ Gemini AI với system instruction và history
+	let response: string;
+	if (history.length > 0) {
+		// Có history, sử dụng context
+		response = await geminiService.generateResponseWithHistory(
+			content,
+			systemInstruction,
+			history,
+		);
+		logger.debug(`[MentionHandler] Sử dụng ${history.length} tin nhắn từ history`);
+	} else {
+		// Không có history, conversation mới
+		response = await geminiService.generateResponseWithInstruction(content, systemInstruction);
+		logger.debug(`[MentionHandler] Conversation mới, không có history`);
+	}
+
+	if (!response) {
+		logger.warn('[MentionHandler] Không nhận được phản hồi từ Gemini AI');
+		await message.reply('Xin lỗi, mình không thể phản hồi lúc này 😔');
+		return;
+	}
+
+	logger.debug(`[MentionHandler] Phản hồi: ${response}`);
+
+	// Lưu tin nhắn của user vào history
+	conversationManager.addMessage(userId, channelId, 'user', content);
+
+	// Gửi phản hồi (tách thành nhiều tin nhắn nếu quá dài)
+	const messageParts = splitLongMessage(response);
+
+	if (messageParts.length === 1) {
+		// Tin nhắn ngắn, gửi bình thường
+		await message.reply(messageParts[0]);
+	} else {
+		// Tin nhắn dài, tách thành nhiều phần
+		logger.info(
+			`[MentionHandler] Phản hồi quá dài (${response.length} ký tự), tách thành ${messageParts.length} tin nhắn`,
+		);
+
+		// Gửi phần đầu tiên như reply
+		await message.reply(messageParts[0]);
+
+		// Gửi các phần còn lại như tin nhắn riêng với delay nhỏ
+		for (let i = 1; i < messageParts.length; i++) {
+			// Delay nhỏ để tránh rate limit (500ms)
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			await message.channel.send(messageParts[i]);
+		}
+	}
+
+	// Lưu phản hồi của bot vào history
+	conversationManager.addMessage(userId, channelId, 'assistant', response);
+
+	// Log thời gian còn lại của conversation
+	const timeRemaining = conversationManager.getTimeRemaining(userId, channelId);
+	const minutesRemaining = Math.floor(timeRemaining / 60000);
+	logger.info(
+		`[MentionHandler] Đã phản hồi thành công. Conversation còn ${minutesRemaining} phút`,
+	);
+}
 
 /**
  * Handler xử lý khi bot được mention và quản lý cuộc trò chuyện
@@ -312,110 +508,15 @@ export const mentionHandler = async (agent: BaseAgent) => {
 
 			// Kiểm tra xem admin có đang thêm temporary user không
 			if (userId === ALLOWED_USER_ID && isMentioned) {
-				// Phát hiện lệnh add temporary user: mention user khác + từ khóa
-				const addTempUserKeywords = [
-					'em nói chuyện với',
-					'hãy nói với',
-					'chat với',
-					'trò chuyện với',
-					'nói chuyện với',
-					'add user',
-					'thêm user',
-				];
-
-				const removeTempUserKeywords = [
-					'ngừng nói với',
-					'dừng nói với',
-					'đừng nói với',
-					'remove user',
-					'xóa user',
-				];
-
-				const contentLower = message.content.toLowerCase();
-				const isAddCommand = addTempUserKeywords.some((kw) => contentLower.includes(kw));
-				const isRemoveCommand = removeTempUserKeywords.some((kw) =>
-					contentLower.includes(kw),
-				);
-
-				// Lấy user được mention (ngoài bot)
-				const mentionedUsers = Array.from(message.mentions.users.values()).filter(
-					(u) => u.id !== agent.user?.id,
-				);
-
-				if (isAddCommand && mentionedUsers.length > 0) {
-					// Thêm các user được mention vào temporary allowed
-					for (const mentionedUser of mentionedUsers) {
-						addTempAllowedUser(mentionedUser.id, userId);
-					}
-
-					const userNames = mentionedUsers.map((u) => u.tag).join(', ');
-					await message.reply(
-						`Dạ, em đã ghi nhớ! Em sẽ nói chuyện với ${userNames} ạ! 💕`,
-					);
-					logger.info(
-						`[MentionHandler] Admin đã thêm ${mentionedUsers.length} temporary user(s): ${userNames}`,
-					);
-					return;
-				}
-
-				if (isRemoveCommand && mentionedUsers.length > 0) {
-					// Xóa các user được mention khỏi temporary allowed
-					let removedCount = 0;
-					for (const mentionedUser of mentionedUsers) {
-						if (removeTempAllowedUser(mentionedUser.id)) {
-							removedCount++;
-						}
-					}
-
-					if (removedCount > 0) {
-						await message.reply(
-							`Dạ, em đã ngừng nói chuyện với ${removedCount} người rồi ạ! 🤫`,
-						);
-					} else {
-						await message.reply(
-							`Dạ, những người này không có trong danh sách của em ạ! 🤔`,
-						);
-					}
-					return;
-				}
+				const handled = await handleAdminCommand(message, userId, agent);
+				if (handled) return;
 			}
 
 			// Kiểm tra xem user có được phép không
 			if (userId !== ALLOWED_USER_ID && !isTempAllowedUser(userId)) {
 				// Nếu được mention thì phản hồi từ chối sau delay random
 				if (isMentioned) {
-					// Kiểm tra cache xem có nên phản hồi không
-					if (!shouldRespondToDeniedUser(userId)) {
-						logger.info(
-							`[MentionHandler] User ${message.author.tag} (${userId}) đã bị từ chối ${MAX_DENIED_RESPONSES} lần. Bỏ qua không phản hồi.`,
-						);
-						return;
-					}
-
-					// Random delay từ 15-50 giây (15000-50000ms)
-					const delayMs = Math.floor(Math.random() * (50000 - 15000 + 1)) + 15000;
-					const delaySec = (delayMs / 1000).toFixed(1);
-
-					const cached = deniedUsersCache.get(userId);
-					const deniedCount = cached?.count ?? 1;
-
-					logger.info(
-						`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Lần từ chối ${deniedCount}/${MAX_DENIED_RESPONSES}. Delay ${delaySec}s...`,
-					);
-
-					// Hiển thị typing indicator trong khi delay
-					await message.channel.sendTyping();
-
-					// Delay random 15-50s
-					await new Promise((resolve) => setTimeout(resolve, delayMs));
-
-					// Gửi phản hồi từ chối
-					const randomResponse =
-						DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
-					await message.reply(randomResponse);
-					logger.info(
-						`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s (${deniedCount}/${MAX_DENIED_RESPONSES})`,
-					);
+					await handleDeniedUserResponse(message, userId);
 				}
 				return;
 			}
@@ -501,83 +602,14 @@ export const mentionHandler = async (agent: BaseAgent) => {
 				return;
 			}
 
-			// Hiển thị typing indicator
-			await message.channel.sendTyping();
-
-			// Lấy instruction phù hợp (khác nhau cho admin và temp users)
-			const isTempUser = isTempAllowedUser(userId);
-			const systemInstruction = isTempUser ? TEMP_USER_INSTRUCTION : MENTION_INSTRUCTION;
-
-			if (isTempUser) {
-				logger.debug(
-					`[MentionHandler] Sử dụng TEMP_USER_INSTRUCTION cho user ${message.author.tag}`,
-				);
-			}
-
-			// Lấy lịch sử cuộc trò chuyện
-			const history = conversationManager.getHistory(userId, channelId);
-
-			// Tạo phản hồi từ Gemini AI với system instruction và history
-			let response: string;
-			if (history.length > 0) {
-				// Có history, sử dụng context
-				response = await geminiService.generateResponseWithHistory(
-					content,
-					systemInstruction,
-					history,
-				);
-				logger.debug(`[MentionHandler] Sử dụng ${history.length} tin nhắn từ history`);
-			} else {
-				// Không có history, conversation mới
-				response = await geminiService.generateResponseWithInstruction(
-					content,
-					systemInstruction,
-				);
-				logger.debug(`[MentionHandler] Conversation mới, không có history`);
-			}
-
-			if (!response) {
-				logger.warn('[MentionHandler] Không nhận được phản hồi từ Gemini AI');
-				await message.reply('Xin lỗi, mình không thể phản hồi lúc này 😔');
-				return;
-			}
-
-			logger.debug(`[MentionHandler] Phản hồi: ${response}`);
-
-			// Lưu tin nhắn của user vào history
-			conversationManager.addMessage(userId, channelId, 'user', content);
-
-			// Gửi phản hồi (tách thành nhiều tin nhắn nếu quá dài)
-			const messageParts = splitLongMessage(response);
-
-			if (messageParts.length === 1) {
-				// Tin nhắn ngắn, gửi bình thường
-				await message.reply(messageParts[0]);
-			} else {
-				// Tin nhắn dài, tách thành nhiều phần
-				logger.info(
-					`[MentionHandler] Phản hồi quá dài (${response.length} ký tự), tách thành ${messageParts.length} tin nhắn`,
-				);
-
-				// Gửi phần đầu tiên như reply
-				await message.reply(messageParts[0]);
-
-				// Gửi các phần còn lại như tin nhắn riêng với delay nhỏ
-				for (let i = 1; i < messageParts.length; i++) {
-					// Delay nhỏ để tránh rate limit (500ms)
-					await new Promise((resolve) => setTimeout(resolve, 500));
-					await message.channel.send(messageParts[i]);
-				}
-			}
-
-			// Lưu phản hồi của bot vào history
-			conversationManager.addMessage(userId, channelId, 'assistant', response);
-
-			// Log thời gian còn lại của conversation
-			const timeRemaining = conversationManager.getTimeRemaining(userId, channelId);
-			const minutesRemaining = Math.floor(timeRemaining / 60000);
-			logger.info(
-				`[MentionHandler] Đã phản hồi thành công. Conversation còn ${minutesRemaining} phút`,
+			// Tạo phản hồi và gửi
+			await generateAndSendResponse(
+				message,
+				userId,
+				channelId,
+				content,
+				geminiService,
+				conversationManager,
 			);
 		} catch (error) {
 			logger.error('[MentionHandler] Lỗi khi xử lý mention:');
