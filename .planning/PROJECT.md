@@ -9,6 +9,16 @@ Cung cấp các tính năng tự động hóa, trò chuyện thông minh sử d�
 ## Current State
 Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modularized, and strictly typed under modern ESLint Flat Config and TypeScript compile environments.
 
+## Current Milestone: v1.1 Advanced AutoChat & Multi-bot Roleplay
+
+**Goal:** Rewrite core feature autoChat to support multi-bot character roleplay, realistic conversation flows with human-like delays, typing indicators, and mention/reply-only triggers.
+
+**Target features:**
+- Multi-bot Character Roleplay & Personalities
+- Human-like Delays & Typing Indicators
+- Mention/Reply-only Triggers & Conversation Continuity
+- Cohesive Multi-bot Chat Flows
+
 ---
 
 ## Requirements
@@ -21,7 +31,11 @@ Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modulari
 - ✓ **FIX-02**: Tối ưu hóa hiệu năng, refactor flow code để chạy mượt mà và an toàn hơn — v1.0
 
 ### Active
-- *(None yet — start next milestone with `/gsd-new-milestone` to define fresh active requirements)*
+- [ ] **AUTOCHAT-01**: Support multi-bot character roleplay by defining customizable character personalities (role/prompt) in each bot's configuration file.
+- [ ] **AUTOCHAT-02**: Implement a human-like delay and typing indicator (sendTyping) when replying to simulate real user behavior.
+- [ ] **AUTOCHAT-03**: Only trigger replies when the bot is explicitly mentioned or replied to in the designated auto-chat channel.
+- [ ] **AUTOCHAT-04**: Maintain natural, continuous conversation flows between multiple bots by having them mention or reply to other participants/bots in the channel.
+- [ ] **AUTOCHAT-05**: Robustly manage conversation history and state per channel to prevent context bleed and keep responses cohesive.
 
 ### Out of Scope
 - Captcha Solvers (purged due to security risks and dependency bloat).
