@@ -75,7 +75,7 @@ program
 				await agent.checkAccount(data.token);
 
 				// Chỉ register thêm các handler sau khi login
-				agent.run(data);
+				agent.run();
 			} catch (error) {
 				logger.error(error as Error);
 				logger.error('Failed to import data file');
@@ -91,7 +91,7 @@ program
 			await agent.checkAccount(config.token);
 
 			// Chỉ register thêm các handler sau khi login
-			agent.run(config);
+			agent.run();
 		}
 	});
 
