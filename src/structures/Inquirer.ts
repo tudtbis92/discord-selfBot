@@ -68,6 +68,56 @@ export class InquirerConfig {
 		return response;
 	}
 
+	private static async getAutoChatCharacter(): Promise<string> {
+		return input({
+			message: 'Personality file name (e.g., huong.txt):',
+			default: 'huong.txt',
+			validate: (value) => {
+				if (!value || value.trim().length === 0) {
+					return 'Must be a valid filename (letters, numbers, dots, hyphens, underscores only)';
+				}
+				return /^[a-zA-Z0-9._-]+$/.test(value) || 'Must be a valid filename (letters, numbers, dots, hyphens, underscores only)';
+			},
+		});
+	}
+
+	private static async getAutoChatCharacterName(): Promise<string> {
+		return input({
+			message: 'Character display name (e.g., Hương Nguyễn):',
+			default: 'Hương Nguyễn',
+			validate: (value) => {
+				return value.trim().length > 0 || 'Character name cannot be empty';
+			},
+		});
+	}
+
+	private static async getAutoChatBotIDs(): Promise<string[]> {
+		const ids = await input({
+			message: 'Bot user IDs (comma-separated, all 5 bots):',
+			default: '',
+			validate: (value) => {
+				if (!value || value.trim().length === 0) {
+					return 'Must contain at least one valid Discord user ID (17-19 digits)';
+				}
+				const parts = value.split(',').map((id) => id.trim()).filter(Boolean);
+				const validSnowflake = /^\d{17,19}$/;
+				const hasValid = parts.some((id) => validSnowflake.test(id));
+				return hasValid || 'Must contain at least one valid Discord user ID (17-19 digits)';
+			},
+		});
+		return ids.split(',').map((id) => id.trim()).filter(Boolean);
+	}
+
+	private static async getAutoChatChannelID(): Promise<string> {
+		return input({
+			message: 'Auto Chat channel ID:',
+			default: '',
+			validate: (value) => {
+				return value.trim().length > 0 || 'Auto Chat channel ID cannot be empty';
+			},
+		});
+	}
+
 	static async create(agent: BaseAgent): Promise<Configuration> {
 		console.log('\\n📝 Configuration Setup\\n');
 
@@ -77,6 +127,10 @@ export class InquirerConfig {
 		const prefix = await this.getPrefix();
 		const autoChat = await this.getAutoChat();
 		const autoChatInterval = autoChat ? await this.getAutoChatInterval() : 4;
+		const autoChatCharacter = autoChat ? await this.getAutoChatCharacter() : undefined;
+		const autoChatCharacterName = autoChat ? await this.getAutoChatCharacterName() : undefined;
+		const autoChatBotIDs = autoChat ? await this.getAutoChatBotIDs() : undefined;
+		const autoChatChannelID = autoChat ? await this.getAutoChatChannelID() : undefined;
 		const showRPC = await this.getShowRPC();
 
 		return {
@@ -88,6 +142,10 @@ export class InquirerConfig {
 			autoChat,
 			autoChatInterval,
 			showRPC,
+			autoChatCharacter,
+			autoChatCharacterName,
+			autoChatBotIDs,
+			autoChatChannelID,
 		};
 	}
 }
