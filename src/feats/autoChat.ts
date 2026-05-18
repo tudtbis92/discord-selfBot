@@ -21,7 +21,7 @@ export class AutoChatManager {
 			try {
 				this.autoChatChannel = this.agent.channels.cache.get(
 					this.agent.config.autoChatChannelID,
-				) as TextChannel;
+				) as TextChannel | undefined;
 
 				if (this.autoChatChannel) {
 					logger.info(
@@ -34,7 +34,9 @@ export class AutoChatManager {
 					);
 				}
 			} catch (error) {
-				logger.error(`[AutoChat] Lỗi khi thiết lập auto chat: ${error}`);
+				logger.error(
+					`[AutoChat] Lỗi khi thiết lập auto chat: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		}
 	}
@@ -49,7 +51,9 @@ export class AutoChatManager {
 			if (message.author.id === this.agent.user?.id) return; // Bỏ qua tin nhắn của chính bot
 
 			// Kiểm tra mention hoặc reply
-			const isMentioned = message.mentions.users.has(this.agent.user?.id!);
+			const isMentioned = this.agent.user?.id
+				? message.mentions.users.has(this.agent.user.id)
+				: false;
 			const isReply =
 				message.reference?.messageId &&
 				this.autoChatChannel.messages.cache.get(message.reference.messageId)?.author.id ===
@@ -61,12 +65,15 @@ export class AutoChatManager {
 		});
 	}
 
-	private async handleMentionOrReply(_message: Message) {
-		return; // DISABLED: Tạm thời tắt chức năng autochat
+	private handleMentionOrReply(_message: Message): Promise<void> {
+		// DISABLED: Tạm thời tắt chức năng autochat
+		void _message;
+		return Promise.resolve();
 	}
 
-	private async sendRandomChat() {
-		return; // DISABLED: Tạm thời tắt chức năng autochat
+	private sendRandomChat(): Promise<void> {
+		// DISABLED: Tạm thời tắt chức năng autochat
+		return Promise.resolve();
 	}
 
 	// Method để gọi từ main loop
@@ -88,7 +95,9 @@ export class AutoChatManager {
 
 		if (channelId) {
 			this.agent.config.autoChatChannelID = channelId;
-			this.autoChatChannel = this.agent.channels.cache.get(channelId) as TextChannel;
+			this.autoChatChannel = this.agent.channels.cache.get(channelId) as
+				| TextChannel
+				| undefined;
 
 			if (enabled && this.autoChatChannel) {
 				logger.info(`[AutoChat] Đã bật auto chat cho kênh: ${this.autoChatChannel.name}`);
@@ -104,7 +113,7 @@ export class AutoChatManager {
 	// Method để thay đổi interval
 	public setAutoChatInterval(minutes: number) {
 		this.agent.config.autoChatInterval = minutes;
-		logger.info(`[AutoChat] Đã đặt interval thành ${minutes} phút`);
+		logger.info(`[AutoChat] Đã đặt interval thành ${String(minutes)} phút`);
 	}
 
 	// Method để lấy thống kê
