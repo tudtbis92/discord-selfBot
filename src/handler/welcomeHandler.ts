@@ -143,8 +143,7 @@ function endWelcomeConversation(userId: string, channelId: string): void {
 function setWelcomeAutoEnd(
 	userId: string,
 	channelId: string,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	channel: any,
+	channel: Message['channel'],
 	geminiService: GeminiService,
 ): void {
 	const key = getWelcomeKey(userId, channelId);
@@ -168,7 +167,6 @@ function setWelcomeAutoEnd(
 			try {
 				const currentConv = getWelcomeConversation(userId, channelId);
 				if (!currentConv || currentConv.responseCount >= 3) {
-					// Conversation đã kết thúc hoặc đã đủ 3 responses
 					return;
 				}
 
@@ -176,7 +174,6 @@ function setWelcomeAutoEnd(
 					`[Welcome] Auto-end timer triggered cho user ${userId}. Gửi respond cuối...`,
 				);
 
-				// Tạo final response
 				const memberName = currentConv.displayName;
 				const finalPrompt = `Chào "${memberName}" một cách thân thiện và kết thúc cuộc trò chuyện. Nhớ gọi tên họ. Bạn chào họ vì muốn để lại cho họ không gian riêng tư, tự do khám phá server, chứ không phải họ rời đi.`;
 				const finalResponse = await geminiService.generateResponseWithHistory(
@@ -186,13 +183,10 @@ function setWelcomeAutoEnd(
 				);
 
 				if (finalResponse) {
-					// Mention member trong response
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
 					await channel.send(`<@${userId}> ${finalResponse}`);
 					logger.info(`[Welcome] Đã gửi auto-end response cho user ${userId}`);
 				}
 
-				// Kết thúc conversation
 				endWelcomeConversation(userId, channelId);
 			} catch (error) {
 				logger.error(`[Welcome] Lỗi khi auto-end conversation cho user ${userId}:`);
@@ -204,40 +198,93 @@ function setWelcomeAutoEnd(
 }
 
 /**
+ * Phân tích tin nhắn từ welcome bot để trích xuất Member ID.
+ */
+function parseWelcomeMessage(message: Message): string | null {
+	if (
+		message.author.id !== WELCOME_BOT_ID ||
+		message.guildId !== WELCOME_GUILD_ID ||
+		message.channel.id !== WELCOME_CHANNEL_ID
+	) {
+		return null;
+	}
+
+	const match = message.content.match(WELCOME_MESSAGE_PATTERN);
+	return match ? match[1] : null;
+}
+
+/**
+ * Lấy tên hiển thị của thành viên mới gia nhập.
+ */
+async function fetchMemberDisplayName(message: Message, newMemberId: string): Promise<string> {
+	let displayName = 'bạn';
+	try {
+		if (message.guild) {
+			const member = await message.guild.members.fetch(newMemberId);
+			displayName = member.displayName || member.user.username || 'bạn';
+			logger.info(`[Welcome] Display name: ${displayName}`);
+		}
+	} catch {
+		logger.warn(`[Welcome] Không thể fetch member info cho ${newMemberId}`);
+	}
+	return displayName;
+}
+
+/**
+ * Gửi tin nhắn chào mừng ban đầu đến thành viên mới.
+ */
+async function sendInitialWelcomeGreeting(
+	newMemberId: string,
+	displayName: string,
+	replyChannel: Message['channel'],
+	geminiService: GeminiService,
+): Promise<void> {
+	// Bắt đầu welcome conversation với reply channel
+	startWelcomeConversation(newMemberId, WELCOME_REPLY_CHANNEL_ID, displayName);
+
+	// Typing indicator
+	await replyChannel.sendTyping();
+
+	// Tạo initial greeting với displayName
+	const greetingPrompt = `Một member mới tên "${displayName}" vừa join server. Hãy chào đón họ một cách nhiệt tình! Gọi tên họ trong lời chào.`;
+	const greeting = await geminiService.generateResponseWithInstruction(
+		greetingPrompt,
+		WELCOME_INSTRUCTION,
+	);
+
+	if (greeting) {
+		// Mention member trong response và gửi vào reply channel
+		await replyChannel.send(`<@${newMemberId}> ${greeting}`);
+
+		// Lưu vào history
+		const conv = getWelcomeConversation(newMemberId, WELCOME_REPLY_CHANNEL_ID);
+		if (conv) {
+			conv.responseCount = 1;
+			conv.history.push({ role: 'assistant', content: greeting });
+			conv.lastMessageAt = Date.now();
+
+			// Set auto-end timer
+			setWelcomeAutoEnd(newMemberId, WELCOME_REPLY_CHANNEL_ID, replyChannel, geminiService);
+		}
+
+		logger.info(`[Welcome] Đã gửi greeting cho member ${newMemberId} (1/3)`);
+	}
+}
+
+/**
  * Xử lý welcome message từ welcome bot
  */
 async function handleWelcomeMessage(
 	message: Message,
 	geminiService: GeminiService,
 ): Promise<boolean> {
-	// Kiểm tra xem có phải welcome message không
-	if (
-		message.author.id !== WELCOME_BOT_ID ||
-		message.guildId !== WELCOME_GUILD_ID ||
-		message.channel.id !== WELCOME_CHANNEL_ID
-	) {
-		return false;
-	}
+	const newMemberId = parseWelcomeMessage(message);
+	if (!newMemberId) return false;
 
-	const match = message.content.match(WELCOME_MESSAGE_PATTERN);
-	if (!match) return false;
-
-	// Lấy member ID từ capture group đầu tiên
-	const newMemberId = match[1];
 	logger.info(`[Welcome] Phát hiện member mới: ${newMemberId}`);
 
 	try {
-		// Fetch member info để lấy display name
-		let displayName = 'bạn';
-		try {
-			if (message.guild) {
-				const member = await message.guild.members.fetch(newMemberId);
-				displayName = member.displayName || member.user.username || 'bạn';
-				logger.info(`[Welcome] Display name: ${displayName}`);
-			}
-		} catch {
-			logger.warn(`[Welcome] Không thể fetch member info cho ${newMemberId}`);
-		}
+		const displayName = await fetchMemberDisplayName(message, newMemberId);
 
 		// Delay ngẫu nhiên 3-8 giây trước khi chào
 		const delayMs = Math.floor(Math.random() * (8000 - 3000 + 1)) + 3000;
@@ -250,47 +297,69 @@ async function handleWelcomeMessage(
 			return true;
 		}
 
-		// Bắt đầu welcome conversation với reply channel
-		startWelcomeConversation(newMemberId, WELCOME_REPLY_CHANNEL_ID, displayName);
-
-		// Typing indicator
-		await replyChannel.sendTyping();
-
-		// Tạo initial greeting với displayName
-		const greetingPrompt = `Một member mới tên "${displayName}" vừa join server. Hãy chào đón họ một cách nhiệt tình! Gọi tên họ trong lời chào.`;
-		const greeting = await geminiService.generateResponseWithInstruction(
-			greetingPrompt,
-			WELCOME_INSTRUCTION,
-		);
-
-		if (greeting) {
-			// Mention member trong response và gửi vào reply channel
-			await replyChannel.send(`<@${newMemberId}> ${greeting}`);
-
-			// Lưu vào history
-			const conv = getWelcomeConversation(newMemberId, WELCOME_REPLY_CHANNEL_ID);
-			if (conv) {
-				conv.responseCount = 1;
-				conv.history.push({ role: 'assistant', content: greeting });
-				conv.lastMessageAt = Date.now();
-
-				// Set auto-end timer
-				setWelcomeAutoEnd(
-					newMemberId,
-					WELCOME_REPLY_CHANNEL_ID,
-					replyChannel,
-					geminiService,
-				);
-			}
-
-			logger.info(`[Welcome] Đã gửi greeting cho member ${newMemberId} (1/3)`);
-		}
+		await sendInitialWelcomeGreeting(newMemberId, displayName, replyChannel, geminiService);
 	} catch (error) {
 		logger.error(`[Welcome] Lỗi khi xử lý welcome cho member ${newMemberId}:`);
 		logger.error(error as Error);
 	}
 
 	return true;
+}
+
+/**
+ * Xây dựng prompt phù hợp cho welcome response dựa trên tiến trình cuộc hội thoại.
+ */
+function buildWelcomeResponsePrompt(
+	memberName: string,
+	content: string,
+	isLastResponse: boolean,
+): string {
+	if (isLastResponse) {
+		return `Member "${memberName}" nói: ${content}\n\n[Đây là response cuối cùng. Hãy chúc ${memberName} vui vẻ và kết thúc conversation một cách tự nhiên. Nhớ gọi tên họ.]`;
+	}
+	return `Member "${memberName}" nói: ${content}`;
+}
+
+/**
+ * Gửi phản hồi chào mừng và cập nhật trạng thái/lịch sử.
+ */
+async function generateAndSendWelcomeResponse(
+	message: Message,
+	welcomeConv: WelcomeConversation,
+	prompt: string,
+	isLastResponse: boolean,
+	geminiService: GeminiService,
+): Promise<void> {
+	const response = await geminiService.generateResponseWithHistory(
+		prompt,
+		WELCOME_INSTRUCTION,
+		welcomeConv.history.slice(0, -1), // Không include user message vừa push
+	);
+
+	if (response) {
+		await message.channel.send(`<@${welcomeConv.userId}> ${response}`);
+
+		// Lưu response vào history
+		welcomeConv.history.push({ role: 'assistant', content: response });
+
+		logger.info(
+			`[Welcome] Đã gửi response cho member ${welcomeConv.userId} (${String(welcomeConv.responseCount)}/3)`,
+		);
+
+		if (isLastResponse) {
+			logger.info(
+				`[Welcome] Đạt 3 responses, kết thúc conversation với member ${welcomeConv.userId}`,
+			);
+			endWelcomeConversation(welcomeConv.userId, welcomeConv.channelId);
+		} else {
+			setWelcomeAutoEnd(
+				welcomeConv.userId,
+				welcomeConv.channelId,
+				message.channel,
+				geminiService,
+			);
+		}
+	}
 }
 
 /**
@@ -316,58 +385,27 @@ async function handleWelcomeResponse(
 			`[Welcome] Nhận response từ member ${userId}: "${content}" (${String(welcomeConv.responseCount)}/3)`,
 		);
 
-		// Lưu message của user
 		welcomeConv.history.push({ role: 'user', content });
 		welcomeConv.lastMessageAt = Date.now();
 
-		// Clear auto-end timer vì user đã phản hồi
 		if (welcomeConv.autoEndTimer) {
 			clearTimeout(welcomeConv.autoEndTimer);
 			welcomeConv.autoEndTimer = undefined;
 		}
 
-		// Typing indicator
 		await message.channel.sendTyping();
 
-		// Tăng response count trước khi generate
 		welcomeConv.responseCount++;
 		const isLastResponse = welcomeConv.responseCount >= 3;
 
-		// Generate response
-		const memberName = welcomeConv.displayName;
-		let prompt = `Member "${memberName}" nói: ${content}`;
-		if (isLastResponse) {
-			prompt = `Member "${memberName}" nói: ${content}\n\n[Đây là response cuối cùng. Hãy chúc ${memberName} vui vẻ và kết thúc conversation một cách tự nhiên. Nhớ gọi tên họ.]`;
-		}
-
-		const response = await geminiService.generateResponseWithHistory(
+		const prompt = buildWelcomeResponsePrompt(welcomeConv.displayName, content, isLastResponse);
+		await generateAndSendWelcomeResponse(
+			message,
+			welcomeConv,
 			prompt,
-			WELCOME_INSTRUCTION,
-			welcomeConv.history.slice(0, -1), // Không include user message vừa push
+			isLastResponse,
+			geminiService,
 		);
-
-		if (response) {
-			// Mention member trong response
-			await message.channel.send(`<@${userId}> ${response}`);
-
-			// Lưu response vào history
-			welcomeConv.history.push({ role: 'assistant', content: response });
-
-			logger.info(
-				`[Welcome] Đã gửi response cho member ${userId} (${String(welcomeConv.responseCount)}/3)`,
-			);
-
-			if (isLastResponse) {
-				// Response thứ 3, kết thúc conversation
-				logger.info(
-					`[Welcome] Đạt 3 responses, kết thúc conversation với member ${userId}`,
-				);
-				endWelcomeConversation(userId, channelId);
-			} else {
-				// Set lại auto-end timer cho response tiếp theo
-				setWelcomeAutoEnd(userId, channelId, message.channel, geminiService);
-			}
-		}
 	} catch (error) {
 		logger.error(`[Welcome] Lỗi khi xử lý response từ member ${userId}:`);
 		logger.error(error as Error);
@@ -392,7 +430,6 @@ export const welcomeHandler = (agent: BaseAgent) => {
 
 	// Cleanup khi process kết thúc
 	process.on('exit', () => {
-		// Clear tất cả welcome conversation timers
 		for (const conv of welcomeConversations.values()) {
 			if (conv.autoEndTimer) {
 				clearTimeout(conv.autoEndTimer);
@@ -403,17 +440,12 @@ export const welcomeHandler = (agent: BaseAgent) => {
 
 	agent.on('messageCreate', async (message: Message) => {
 		try {
-			// Bỏ qua tin nhắn từ chính bot
 			if (message.author.id === agent.user?.id) return;
-
-			// Bỏ qua bot messages (trừ welcome bot)
 			if (message.author.bot && message.author.id !== WELCOME_BOT_ID) return;
 
-			// Xử lý welcome message từ welcome bot
 			const isWelcomeMsg = await handleWelcomeMessage(message, geminiService);
 			if (isWelcomeMsg) return;
 
-			// Xử lý response từ member mới trong welcome conversation
 			const isWelcomeResponse = await handleWelcomeResponse(message, geminiService);
 			if (isWelcomeResponse) return;
 		} catch (error) {
