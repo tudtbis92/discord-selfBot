@@ -11,13 +11,18 @@ Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modulari
 
 ## Current Milestone: v1.1 Advanced AutoChat & Multi-bot Roleplay
 
-**Goal:** Rewrite core feature autoChat to support multi-bot character roleplay, realistic conversation flows with human-like delays, typing indicators, and mention/reply-only triggers.
+**Goal:** Rewrite core feature autoChat so 5 selfbot processes (1 per Discord account) roleplay as distinct characters and converse naturally in a shared channel — triggered only by mentions/replies, with human-like delays.
+
+**Architecture:** 5 separate PM2 processes. Each process = 1 BaseAgent + 1 Discord token. Bots communicate via Discord events (messageCreate) — no IPC needed.
 
 **Target features:**
-- Multi-bot Character Roleplay & Personalities
-- Human-like Delays & Typing Indicators
-- Mention/Reply-only Triggers & Conversation Continuity
-- Cohesive Multi-bot Chat Flows
+- Config schema: `autoChatCharacter`, `autoChatBotIDs`, `autoChatChannelID` per bot JSON
+- Character personality injection into Gemini prompts
+- Mention/Reply-only trigger (only from known bot IDs)
+- Human-like delay (5-15s random) + typing indicator
+- Gemini decides in-character who to @mention next
+- Shared conversation history via Redis per channel
+- Conversation initiator mechanism (one bot starts a topic periodically)
 
 ---
 
@@ -31,11 +36,13 @@ Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modulari
 - ✓ **FIX-02**: Tối ưu hóa hiệu năng, refactor flow code để chạy mượt mà và an toàn hơn — v1.0
 
 ### Active
-- [ ] **AUTOCHAT-01**: Support multi-bot character roleplay by defining customizable character personalities (role/prompt) in each bot's configuration file.
-- [ ] **AUTOCHAT-02**: Implement a human-like delay and typing indicator (sendTyping) when replying to simulate real user behavior.
-- [ ] **AUTOCHAT-03**: Only trigger replies when the bot is explicitly mentioned or replied to in the designated auto-chat channel.
-- [ ] **AUTOCHAT-04**: Maintain natural, continuous conversation flows between multiple bots by having them mention or reply to other participants/bots in the channel.
-- [ ] **AUTOCHAT-05**: Robustly manage conversation history and state per channel to prevent context bleed and keep responses cohesive.
+- [ ] **AUTOCHAT-01**: Extend bot config JSON schema with `autoChatCharacter` (personality prompt), `autoChatBotIDs` (array of participant bot user IDs), and `autoChatChannelID`.
+- [ ] **AUTOCHAT-02**: Inject configured character personality into the Gemini system instruction so all generated responses align with the bot's role.
+- [ ] **AUTOCHAT-03**: Only trigger replies when explicitly @mentioned or replied-to in `autoChatChannelID`, and only from senders whose ID is in `autoChatBotIDs`.
+- [ ] **AUTOCHAT-04**: Simulate human-like behavior: display typing indicator (`sendTyping`) + random delay (5-15s) before sending reply.
+- [ ] **AUTOCHAT-05**: Gemini decides in-character who to @mention next (0 or more bots from `autoChatBotIDs`). If no mention → reply to the message that triggered the response.
+- [ ] **AUTOCHAT-06**: Manage shared per-channel conversation history via Redis/RAM dual-layer cache so all bots see full context.
+- [ ] **AUTOCHAT-07**: Implement conversation initiator: one bot periodically sends an opening message + mentions others to start a new topic.
 
 ### Out of Scope
 - Captcha Solvers (purged due to security risks and dependency bloat).
@@ -54,13 +61,14 @@ Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modulari
 | Gemini API Multi-key Rotation | Bypass free-tier rate limits and provide resilient conversational responses | ✓ Verified |
 | Layered RAM + Redis Cache | Guarantee non-blocking execution and maintain state across PM2 process restarts | ✓ Verified |
 | Console-only Winston Transport | Avoid writing to disk log files, letting PM2 manage stderr/stdout logs | ✓ Verified |
+| 5 Separate Processes (1 per bot) | Discord events = natural IPC, no orchestrator needed, PM2 crash isolation, fits existing BaseAgent architecture | v1.1 |
 
 ---
 
 ## Context
 - **Codebase Size:** ~7,700 lines of robust TypeScript code.
 - **Tech Stack:** Node.js (ESM), TypeScript, discord.js-selfbot-v13, ioredis, @google/generative-ai, winston, commander, inquirer.
-- **Next Steps:** Planning v1.1.
+- **Next Steps:** Executing v1.1 — AutoChat rewrite with multi-bot roleplay.
 
 ---
 *Last updated: 2026-05-18 after v1.0 milestone*
