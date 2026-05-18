@@ -1,34 +1,52 @@
 # selftBot-owo
 
 ## What This Is
-Discord self-bot / automation bot.
+Discord self-bot / automation bot optimized with Gemini conversational capability, PM2 logging integration, and dual-layer Redis/RAM memory cache.
 
 ## Core Value
-Cung cấp các tính năng tự động hóa và tiện ích hỗ trợ người dùng trên Discord.
+Cung cấp các tính năng tự động hóa, trò chuyện thông minh sử dụng Gemini API, tối ưu hiệu năng, và quản lý trạng thái mượt mà, ổn định trên Discord.
 
-## Current Milestone: v1.0 — Refactoring & Clean Up
+## Current State
+Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modularized, and strictly typed under modern ESLint Flat Config and TypeScript compile environments.
 
-**Goal:** Refactor toàn bộ code, tổ chức lại cấu trúc project, kiểm tra và làm sạch chất lượng code, loại bỏ tính năng thừa và fix lỗi nhỏ.
+---
 
-**Target features:**
-- Refactor codebase giúp dễ bảo trì và mở rộng.
-- Reorganize cấu trúc thư mục project cho logic.
-- Loại bỏ các file, thư viện, hoặc tính năng không cần thiết.
-- Fix các lỗi nhỏ (minor bugs) hiện có.
+## Requirements
 
-## Evolution
+### Validated
+- ✓ **REFACT-01**: Tái cấu trúc cấu trúc thư mục logic hơn (nhóm theo tính năng hoặc file type) — v1.0
+- ✓ **REFACT-02**: Rà soát, áp dụng rules linting/type checking và dọn dẹp các đoạn code rườm rà — v1.0
+- ✓ **REFACT-03**: Loại bỏ các dependencies, script và file code rác không còn sử dụng — v1.0
+- ✓ **FIX-01**: Khắc phục các lỗi nhỏ (minor bugs) làm giảm trải nghiệm hoặc gây lỗi ngầm — v1.0
+- ✓ **FIX-02**: Tối ưu hóa hiệu năng, refactor flow code để chạy mượt mà và an toàn hơn — v1.0
 
-This document evolves at phase transitions and milestone boundaries.
+### Active
+- *(None yet — start next milestone with `/gsd-new-milestone` to define fresh active requirements)*
 
-**After each phase transition** (via `/gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
+### Out of Scope
+- Captcha Solvers (purged due to security risks and dependency bloat).
+- Auto-farming behaviors (out of scope to keep bot focused and compliant).
+- Complex UI dashboards (maintained via terminal command inquirer launcher).
 
-**After each milestone** (via `/gsd-complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+---
+
+## Key Decisions
+
+| Decision | Rationale | Status |
+|----------|-----------|--------|
+| Purge Captcha Solver | Remove dangerous, slow dependencies and minimize codebase size | ✓ Verified |
+| Modern ESLint 9+ Config | Enforce clean code and modern standards across the ESM workspace | ✓ Verified |
+| Git-only Self Updater | Remove AdmZip dependency, avoid manual zip download errors, and rely on git commands | ✓ Verified |
+| Gemini API Multi-key Rotation | Bypass free-tier rate limits and provide resilient conversational responses | ✓ Verified |
+| Layered RAM + Redis Cache | Guarantee non-blocking execution and maintain state across PM2 process restarts | ✓ Verified |
+| Console-only Winston Transport | Avoid writing to disk log files, letting PM2 manage stderr/stdout logs | ✓ Verified |
+
+---
+
+## Context
+- **Codebase Size:** ~7,700 lines of robust TypeScript code.
+- **Tech Stack:** Node.js (ESM), TypeScript, discord.js-selfbot-v13, ioredis, @google/generative-ai, winston, commander, inquirer.
+- **Next Steps:** Planning v1.1.
+
+---
+*Last updated: 2026-05-18 after v1.0 milestone*
