@@ -23,10 +23,16 @@
 #### Phase 4: Config Schema & Personality Injection
 - **Goal:** Extend bot config JSON and TypeScript types with autoChat fields (`autoChatCharacter`, `autoChatBotIDs`, `autoChatChannelID`), and wire personality injection into GeminiService.
 - **Requirements:** `AUTOCHAT-01`, `AUTOCHAT-02`
+- **Plans:** 3 plans
+- **Plan list:**
+  - [x] 04-01-PLAN.md — Extend Configuration interface + create personalities directory
+  - [x] 04-02-PLAN.md — Dynamic systemInstruction in GeminiService + personality loading in BaseAgent
+  - [x] 04-03-PLAN.md — Inquirer prompts for new autoChat config fields
 - **Success Criteria:**
   1. Each bot's JSON config file can define `autoChatCharacter` (personality prompt), `autoChatBotIDs` (array of 4 other bot IDs), and `autoChatChannelID`.
   2. TypeScript `Configuration` interface is updated and compiles cleanly.
   3. GeminiService reads and applies the personality prompt as system instruction when generating autoChat responses.
+- **Status:** ✅ COMPLETE — 2026-05-18
 
 #### Phase 5: Mention/Reply Triggers & Human-like Response
 - **Goal:** Rewrite AutoChatManager to only respond to mentions/replies from known bot IDs, with human-like delay and typing indicators. Gemini decides who to @mention next.
@@ -55,6 +61,6 @@
 | 1. Reorganization & Cleanup | v1.0 | 3/3 | Complete | 2026-05-18 |
 | 2. Code Quality & Linting | v1.0 | 3/3 | Complete | 2026-05-18 |
 | 3. Bug Fixes & Optimization | v1.0 | 4/4 | Complete | 2026-05-18 |
-| 4. Config & Personality Injection | v1.1 | 0/? | Planned | — |
+| 4. Config & Personality Injection | v1.1 | 3/3 | Complete | 2026-05-18 |
 | 5. Triggers & Human-like Response | v1.1 | 0/? | Planned | — |
 | 6. History & Initiator | v1.1 | 0/? | Planned | — |
