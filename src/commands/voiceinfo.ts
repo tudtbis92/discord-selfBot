@@ -4,11 +4,12 @@ import { logger } from "../utils/logger.js";
 const voiceinfoCommand: Commands = {
     name: "voiceinfo",
     description: "Hiển thị thông tin về kết nối voice hiện tại",
-    execute: async (agent, message, ...args) => {
+    execute: async (agent, message, ..._args) => {
         try {
             // Kiểm tra xem bot có đang trong voice channel không
             if (!agent.voice.connection) {
-                return message.reply("❌ Bot hiện không ở trong kênh voice nào!");
+                await message.reply("❌ Bot hiện không ở trong kênh voice nào!");
+                return;
             }
 
             const connection = agent.voice.connection;
@@ -19,12 +20,14 @@ const voiceinfoCommand: Commands = {
 **Channel:** ${connection.channel?.name || 'Không xác định'}
 **Server:** ${connection.channel?.guild?.name || 'Không xác định'}`;
 
-            message.reply(infoMessage);
+            await message.reply(infoMessage);
 
         } catch (error) {
             logger.error(`[VoiceInfo] Lỗi khi lấy thông tin voice: ${error}`);
-            message.reply("❌ Có lỗi xảy ra khi lấy thông tin voice connection!");
+            await message.reply("❌ Có lỗi xảy ra khi lấy thông tin voice connection!");
         }
+        
+        return;
     }
 }
 

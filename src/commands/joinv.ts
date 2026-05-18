@@ -8,8 +8,9 @@ const joinvCommand: Commands = {
         try {
             // Kiểm tra xem có cung cấp channelVoiceId không
             if (!args || args.length === 0 || !args[0]) {
-                return message.reply("❌ Vui lòng cung cấp ID của kênh voice!\n" +
+                await message.reply("❌ Vui lòng cung cấp ID của kênh voice!\n" +
                     "Sử dụng: `joinv <channelId>` hoặc `joinv <guildId> <channelId>`");
+                return;
             }
 
             let voiceChannel;
@@ -24,7 +25,8 @@ const joinvCommand: Commands = {
                 // Fetch guild trước
                 const guild = agent.guilds.cache.get(guildId);
                 if (!guild) {
-                    return message.reply("❌ Không tìm thấy server với ID đã cung cấp!");
+                    await message.reply("❌ Không tìm thấy server với ID đã cung cấp!");
+                    return;
                 }
 
                 // Fetch channels của guild đó
@@ -32,7 +34,8 @@ const joinvCommand: Commands = {
                 voiceChannel = guild.channels.cache.get(channelId);
                 
                 if (!voiceChannel) {
-                    return message.reply(`❌ Không tìm thấy kênh voice với ID ${channelId} trong server ${guild.name}!`);
+                    await message.reply(`❌ Không tìm thấy kênh voice với ID ${channelId} trong server ${guild.name}!`);
+                    return;
                 }
             } else {
                 // Chỉ có channelId, tìm trong tất cả guilds
@@ -63,11 +66,13 @@ const joinvCommand: Commands = {
             }
 
             if (!voiceChannel) {
-                return message.reply("❌ Không tìm thấy kênh voice với ID đã cung cấp trong bất kỳ server nào!");
+                await message.reply("❌ Không tìm thấy kênh voice với ID đã cung cấp trong bất kỳ server nào!");
+                return;
             }
 
             if (voiceChannel.type !== "GUILD_VOICE") {
-                return message.reply("❌ ID được cung cấp không phải là kênh voice!");
+                await message.reply("❌ ID được cung cấp không phải là kênh voice!");
+                return;
             }
 
             // Kiểm tra xem bot đã join voice channel nào chưa
@@ -77,19 +82,21 @@ const joinvCommand: Commands = {
             }
 
             // Join vào kênh voice
-            const connection = await agent.voice.joinChannel(voiceChannel, {
+            await agent.voice.joinChannel(voiceChannel, {
                 selfVideo: false,
                 selfDeaf: false,
                 selfMute: false,
             });
             
             logger.info(`[JoinV] Đã join vào kênh voice: ${voiceChannel.name} (${channelId})`);
-            message.reply(`✅ Đã join vào kênh voice: **${voiceChannel.name}**${guildId ? ` trong server **${voiceChannel.guild?.name}**` : ''}`);
+            await message.reply(`✅ Đã join vào kênh voice: **${voiceChannel.name}**${guildId ? ` trong server **${voiceChannel.guild?.name}**` : ''}`);
 
         } catch (error) {
             logger.error(`[JoinV] Lỗi khi join voice channel: ${error}`);
-            message.reply("❌ Có lỗi xảy ra khi join vào kênh voice!");
+            await message.reply("❌ Có lỗi xảy ra khi join vào kênh voice!");
         }
+        
+        return;
     }
 }
 

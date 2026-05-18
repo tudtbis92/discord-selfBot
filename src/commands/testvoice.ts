@@ -4,7 +4,7 @@ import { logger } from "../utils/logger.js";
 const testvoiceCommand: Commands = {
     name: "testvoice",
     description: "Test debug voice functionality",
-    execute: async (agent, message, ...args) => {
+    execute: async (agent, message, ..._args) => {
         try {
             logger.info(`[TestVoice] Bắt đầu test...`);
             
@@ -17,7 +17,7 @@ const testvoiceCommand: Commands = {
             
             if (guildsCount > 0) {
                 debugInfo += `**Guild list:**\n`;
-                agent.guilds.cache.forEach((guild, index) => {
+                agent.guilds.cache.forEach((guild, _index) => {
                     debugInfo += `• ${guild.name} (${guild.id})\n`;
                 });
                 
@@ -60,12 +60,14 @@ const testvoiceCommand: Commands = {
             // Test voice connection
             debugInfo += `\n**Voice connection status:** ${agent.voice.connection ? 'Connected' : 'Not connected'}\n`;
             
-            message.reply(debugInfo);
+            await message.reply(debugInfo);
             
         } catch (error) {
             logger.error(`[TestVoice] Error: ${error}`);
-            message.reply(`❌ Test failed: ${error}`);
+            await message.reply(`❌ Test failed: ${error}`);
         }
+        
+        return;
     }
 }
 

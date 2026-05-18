@@ -1,14 +1,15 @@
 import { Message } from "discord.js-selfbot-v13";
 import { Commands } from "../typings/typings.js";
 import { BaseAgent } from "../structures/BaseAgent.js";
-import { safeDiscordBotChatWithDelay, safeGeminiCall } from "../structures/gemini.js";
+import { safeDiscordBotChatWithDelay } from "../structures/gemini.js";
 
 export const chat: Commands = {
 	name: "chat",
 	description: "Test tính năng chat với Gemini AI",
 	execute: async (agent: BaseAgent, msg: Message, ...args: string[]) => {
 		if (!args.length) {
-			return msg.reply("❌ Vui lòng cung cấp nội dung chat!\nSử dụng: `chat <nội dung>`");
+			await msg.reply("❌ Vui lòng cung cấp nội dung chat!\nSử dụng: `chat <nội dung>`");
+			return;
 		}
 
 		const userMessage = args.join(" ");
@@ -33,6 +34,8 @@ export const chat: Commands = {
 		} catch (error) {
 			await msg.reply(`❌ Lỗi không mong muốn: ${error}`);
 		}
+		
+		return;
 	},
 };
 

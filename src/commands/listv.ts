@@ -12,7 +12,8 @@ const listvCommand: Commands = {
                 // Nếu có guildId cụ thể
                 const guild = agent.guilds.cache.get(args[0]);
                 if (!guild) {
-                    return message.reply("❌ Không tìm thấy server với ID đã cung cấp!");
+                    await message.reply("❌ Không tìm thấy server với ID đã cung cấp!");
+                    return;
                 }
                 guildsToCheck = [guild];
             } else {
@@ -23,7 +24,8 @@ const listvCommand: Commands = {
             logger.info(`[ListV] Tìm thấy ${guildsToCheck.length} servers để kiểm tra`);
 
             if (guildsToCheck.length === 0) {
-                return message.reply("❌ Bot không có mặt trong server nào!");
+                await message.reply("❌ Bot không có mặt trong server nào!");
+                return;
             }
 
             let voiceChannelsList = "";
@@ -58,7 +60,8 @@ const listvCommand: Commands = {
             }
 
             if (totalChannels === 0) {
-                return message.reply("❌ Không tìm thấy voice channel nào!");
+                await message.reply("❌ Không tìm thấy voice channel nào!");
+                return;
             }
 
             // Chia nhỏ tin nhắn nếu quá dài (Discord limit 2000 characters)
@@ -66,7 +69,7 @@ const listvCommand: Commands = {
             const fullMessage = header + voiceChannelsList;
 
             if (fullMessage.length <= 2000) {
-                message.reply(fullMessage);
+                await message.reply(fullMessage);
             } else {
                 // Chia thành nhiều tin nhắn
                 const chunks: string[] = [];
@@ -96,8 +99,10 @@ const listvCommand: Commands = {
 
         } catch (error) {
             logger.error(`[ListV] Lỗi khi liệt kê voice channels: ${error}`);
-            message.reply("❌ Có lỗi xảy ra khi liệt kê voice channels!");
+            await message.reply("❌ Có lỗi xảy ra khi liệt kê voice channels!");
         }
+        
+        return;
     }
 }
 

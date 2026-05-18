@@ -1,5 +1,4 @@
 import { BaseAgent } from "../structures/BaseAgent.js";
-import { safeDiscordBotChatWithDelay, safeGeminiCall } from "../structures/gemini.js";
 import { logger } from "../utils/logger.js";
 import { ranInt } from "../utils/utils.js";
 import { TextChannel, Message } from "discord.js-selfbot-v13";
@@ -8,7 +7,6 @@ export class AutoChatManager {
     private agent: BaseAgent;
     private autoChatChannel?: TextChannel;
     private lastChatTime: number = 0;
-    private lastBotMessageCheckTime: number = 0; // Thời gian kiểm tra cuối khi tin nhắn mới nhất là của bot
     private botMessageDelayTime: number = 0; // Thời gian delay khi tin nhắn mới nhất là của bot
     private isProcessingMention: boolean = false;
 
@@ -57,7 +55,7 @@ export class AutoChatManager {
         });
     }
 
-    private async handleMentionOrReply(message: Message) {
+    private async handleMentionOrReply(_message: Message) {
         return; // DISABLED: Tạm thời tắt chức năng autochat
     }
 
@@ -101,52 +99,6 @@ export class AutoChatManager {
     public setAutoChatInterval(minutes: number) {
         this.agent.config.autoChatInterval = minutes;
         logger.info(`[AutoChat] Đã đặt interval thành ${minutes} phút`);
-    }
-
-    // Method để lấy tin nhắn mới nhất trong channel
-    private async getLastMessage(): Promise<Message | null> {
-        if (!this.autoChatChannel) return null;
-        
-        try {
-            const messages = await this.autoChatChannel.messages.fetch({ limit: 1 });
-            return messages.first() || null;
-        } catch (error) {
-            logger.error(`[AutoChat] Lỗi khi lấy tin nhắn mới nhất: ${error}`);
-            return null;
-        }
-    }
-
-    // Method để lấy tin nhắn gần đây
-    private async getRecentMessages(limit: number = 10): Promise<Message[]> {
-        if (!this.autoChatChannel) return [];
-        
-        try {
-            const messages = await this.autoChatChannel.messages.fetch({ limit });
-            return Array.from(messages.values()).reverse(); // Sắp xếp theo thời gian tăng dần
-        } catch (error) {
-            logger.error(`[AutoChat] Lỗi khi lấy tin nhắn gần đây: ${error}`);
-            return [];
-        }
-    }
-
-    // Method để xây dựng context cuộc trò chuyện
-    private buildConversationContext(messages: Message[]): string {
-        if (!messages.length) return '';
-
-        const contextMessages = messages
-            .filter(msg => !msg.author.bot && msg.content.trim().length > 0) // Lọc bot và tin nhắn rỗng
-            .slice(-5) // Chỉ lấy 5 tin nhắn gần nhất
-            .map(msg => {
-                const username = msg.author.displayName || msg.author.username;
-                const content = msg.content.length > 100 
-                    ? msg.content.substring(0, 100) + '...' 
-                    : msg.content;
-                return `${username}: ${content}`;
-            });
-
-        return contextMessages.length > 0 
-            ? contextMessages.join('\n') 
-            : '';
     }
 
     // Method để lấy thống kê
