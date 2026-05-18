@@ -1,14 +1,14 @@
-import path from "path";
-import { getFiles } from "../utils/utils.js";
-import { fileURLToPath } from "url";
-import { Collection } from "discord.js-selfbot-v13";
-import { Commands } from "../typings/typings.js";
+import path from 'path';
+import { getFiles } from '../utils/utils.js';
+import { fileURLToPath } from 'url';
+import { Collection } from 'discord.js-selfbot-v13';
+import { Commands } from '../typings/typings.js';
 
 export const loadCommands = async (): Promise<Collection<string, Commands>> => {
-	const suffix = ".js";
+	const suffix = '.js';
 	const files = getFiles(
-		path.resolve(fileURLToPath(import.meta.url), "..", "..", "commands"),
-		suffix
+		path.resolve(fileURLToPath(import.meta.url), '..', '..', 'commands'),
+		suffix,
 	);
 	const commands: Collection<string, Commands> = new Collection();
 

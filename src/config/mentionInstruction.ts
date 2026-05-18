@@ -97,36 +97,36 @@ Important: must response by Vietnamese.`;
  * System instruction cho các loại câu hỏi khác nhau
  */
 export const INSTRUCTION_VARIANTS = {
-    greeting: `Chào hỏi thân thiện, ngắn gọn và vui vẻ. Có thể hỏi thăm hoặc bày tỏ sự quan tâm.`,
-    
-    question: `Trả lời câu hỏi một cách chính xác nhưng ngắn gọn. Nếu cần giải thích, giữ ở mức đơn giản.`,
-    
-    casual: `Trò chuyện thoải mái như bạn bè. Có thể đùa vui nhẹ nhàng nếu phù hợp.`,
-    
-    help: `Cung cấp thông tin hữu ích nhưng không quá chi tiết. Hướng dẫn từng bước nếu cần.`,
+	greeting: `Chào hỏi thân thiện, ngắn gọn và vui vẻ. Có thể hỏi thăm hoặc bày tỏ sự quan tâm.`,
+
+	question: `Trả lời câu hỏi một cách chính xác nhưng ngắn gọn. Nếu cần giải thích, giữ ở mức đơn giản.`,
+
+	casual: `Trò chuyện thoải mái như bạn bè. Có thể đùa vui nhẹ nhàng nếu phù hợp.`,
+
+	help: `Cung cấp thông tin hữu ích nhưng không quá chi tiết. Hướng dẫn từng bước nếu cần.`,
 };
 
 /**
  * Lấy instruction phù hợp dựa trên nội dung tin nhắn
  */
 export function getInstruction(content: string): string {
-    const lowerContent = content.toLowerCase();
-    
-    // Kiểm tra greeting
-    if (/(hi|hello|hey|chào|xin chào)/i.test(lowerContent)) {
-        return INSTRUCTION_VARIANTS.greeting;
-    }
-    
-    // Kiểm tra question
-    if (/(\?|tại sao|như thế nào|làm sao|what|why|how|when|where)/i.test(lowerContent)) {
-        return INSTRUCTION_VARIANTS.question;
-    }
-    
-    // Kiểm tra help
-    if (/(help|giúp|hướng dẫn|chỉ|guide)/i.test(lowerContent)) {
-        return INSTRUCTION_VARIANTS.help;
-    }
-    
-    // Mặc định là casual
-    return INSTRUCTION_VARIANTS.casual;
+	const lowerContent = content.toLowerCase();
+
+	// Kiểm tra greeting
+	if (/(hi|hello|hey|chào|xin chào)/i.test(lowerContent)) {
+		return INSTRUCTION_VARIANTS.greeting;
+	}
+
+	// Kiểm tra question
+	if (/(\?|tại sao|như thế nào|làm sao|what|why|how|when|where)/i.test(lowerContent)) {
+		return INSTRUCTION_VARIANTS.question;
+	}
+
+	// Kiểm tra help
+	if (/(help|giúp|hướng dẫn|chỉ|guide)/i.test(lowerContent)) {
+		return INSTRUCTION_VARIANTS.help;
+	}
+
+	// Mặc định là casual
+	return INSTRUCTION_VARIANTS.casual;
 }
