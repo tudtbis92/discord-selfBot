@@ -43,17 +43,20 @@ export class BaseAgent extends Client {
 		captcha: { captcha_sitekey: string; captcha_rqdata?: string },
 		userAgent: string,
 		captchaKey: string,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		CaptchaSolver: any,
 	): Promise<string> {
 		try {
 			logger.info('[Captcha] Discord yêu cầu giải captcha...');
 			logger.info(`[Captcha] Sitekey: ${captcha.captcha_sitekey}`);
 
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
 			const solver = new CaptchaSolver.Solver(captchaKey);
 
 			logger.info('[Captcha] Đang gửi captcha đến 2Captcha...');
 
 			// Giải hCaptcha - chỉ cần 1 object parameter
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
 			const result = await solver.hcaptcha({
 				sitekey: captcha.captcha_sitekey,
 				pageurl: 'https://discord.com/channels/@me',
@@ -62,15 +65,16 @@ export class BaseAgent extends Client {
 			});
 
 			logger.sent('[Captcha] ✅ Đã giải captcha thành công!');
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 			return result.data as string;
 		} catch (error: unknown) {
 			logger.error('[Captcha] ❌ Lỗi khi giải captcha:');
 			logger.error(error as Error);
 
 			const err = error as Error;
-			if (err.message?.includes('ZERO_BALANCE')) {
+			if (err.message.includes('ZERO_BALANCE')) {
 				logger.error('[Captcha] Tài khoản 2Captcha hết tiền!');
-			} else if (err.message?.includes('ERROR_WRONG_USER_KEY')) {
+			} else if (err.message.includes('ERROR_WRONG_USER_KEY')) {
 				logger.error('[Captcha] API Key không đúng!');
 			}
 
@@ -109,6 +113,7 @@ export class BaseAgent extends Client {
 
 			// Dynamic import captcha solver package
 			const Captcha2 = await import('@2captcha/captcha-solver');
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 			const CaptchaSolver = Captcha2.default || Captcha2;
 
 			const captchaKey = this.config.captchaKey;
@@ -141,10 +146,10 @@ export class BaseAgent extends Client {
 	 * @returns {Promise<void>} Resolves when ready handlers are set up
 	 */
 	private onReady = async (): Promise<void> => {
-		logger.info('Logged in as ' + this.user?.displayName);
+		logger.info(`Logged in as ${this.user?.displayName ?? 'Unknown user'}`);
 
 		if (this.config.showRPC) {
-			loadPresence(this);
+			void loadPresence(this);
 			startAutoPresenceUpdate(this); // Bắt đầu auto update presence
 		}
 		if (this.config.prefix) {
@@ -159,7 +164,7 @@ export class BaseAgent extends Client {
 			logger.info('[AutoChat] Đã khởi tạo Auto Chat Manager');
 		}
 
-		logger.info(`Loaded ${this.commands.size} commands`);
+		logger.info(`Loaded ${String(this.commands.size)} commands`);
 		logger.info(`Running on channel: ${this.activeChannel.name}`);
 
 		void this.main();
@@ -179,7 +184,7 @@ export class BaseAgent extends Client {
 		void commandHandler(this);
 		void mentionHandler(this);
 		void avatarHandler(this);
-		void welcomeHandler(this);
+		welcomeHandler(this);
 	};
 
 	/**
@@ -203,7 +208,7 @@ export class BaseAgent extends Client {
 					void this.QRLogin();
 				}
 			} catch (error) {
-				reject(error as Error);
+				reject(error instanceof Error ? error : new Error(String(error)));
 			}
 		});
 	};
@@ -219,6 +224,7 @@ export class BaseAgent extends Client {
 		logger.info('[MAIN] 🚀 Bot đã khởi động - CHỈ CHẠY AUTO CHAT MODE');
 
 		// Vòng lặp chính - chỉ xử lý auto chat
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 		while (true) {
 			// Xử lý Auto Chat
 			if (this.autoChatManager) {
@@ -252,10 +258,9 @@ export class BaseAgent extends Client {
 	 *
 	 * @public
 	 * @deprecated Hàm này đã lỗi thời và được giữ lại để tương thích ngược. Cấu hình đã được xử lý tự động.
-	 * @param {Configuration} [_config] Cấu hình tùy chọn
 	 * @returns {void}
 	 */
-	public run = (_config?: Configuration): void => {
+	public run = (): void => {
 		// Config và handlers đã được setup, không cần làm gì thêm
 		// Method này giữ lại để tương thích với code cũ
 	};
