@@ -32,9 +32,9 @@
 
 | Requirement ID | Phase | Plan | Status |
 |----------------|-------|------|--------|
-| **AUTOCHAT-01**| TBD   | TBD  | Pending|
-| **AUTOCHAT-02**| TBD   | TBD  | Pending|
-| **AUTOCHAT-03**| TBD   | TBD  | Pending|
-| **AUTOCHAT-04**| TBD   | TBD  | Pending|
-| **AUTOCHAT-05**| TBD   | TBD  | Pending|
-| **AUTOCHAT-06**| TBD   | TBD  | Pending|
+| **AUTOCHAT-01**| Phase 4| TBD  | Pending|
+| **AUTOCHAT-02**| Phase 4| TBD  | Pending|
+| **AUTOCHAT-03**| Phase 5| TBD  | Pending|
+| **AUTOCHAT-04**| Phase 5| TBD  | Pending|
+| **AUTOCHAT-05**| Phase 6| TBD  | Pending|
+| **AUTOCHAT-06**| Phase 6| TBD  | Pending|
