@@ -2,11 +2,11 @@
 
 **3 phases** | **5 requirements mapped** | All covered ✓
 
-| # | Phase | Goal | Requirements | Success Criteria |
-|---|-------|------|--------------|------------------|
-| 1 | Project Reorganization & Cleanup | Tổ chức lại thư mục và xoá code thừa | REFACT-01, REFACT-03 | 2 |
-| 2 | Code Quality & Linting | 1/3 | In Progress|  |
-| 3 | Bug Fixes & Optimization| Vá lỗi nhỏ và tối ưu hoá luồng xử lý | FIX-01, FIX-02 | 2 |
+| # | Phase | Goal | Requirements | Status | Success Criteria |
+|---|-------|------|--------------|--------|------------------|
+| 1 | Project Reorganization & Cleanup | Tổ chức lại thư mục và xoá code thừa | REFACT-01, REFACT-03 | Completed | 2/2 |
+| 2 | Code Quality & Linting | Đảm bảo chuẩn code chung và loại bỏ lỗi tiềm ẩn | REFACT-02 | Completed | 2/2 |
+| 3 | Bug Fixes & Optimization | Vá lỗi nhỏ và tối ưu hoá luồng xử lý | FIX-01, FIX-02 | Completed | 2/2 |
 
 ### Phase Details
 
