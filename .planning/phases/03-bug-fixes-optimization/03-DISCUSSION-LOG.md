@@ -3,9 +3,9 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-18T11:03:06+07:00
+**Date:** 2026-05-18T11:09:32+07:00
 **Phase:** 3-Bug Fixes & Optimization
-**Areas discussed:** Xử lý Captcha & Auto-Farm, Tự động Cập nhật, Gemini API Rate Limiting, Logger Strategy
+**Areas discussed:** Xử lý Captcha & Auto-Farm, Tự động Cập nhật, Gemini API Rate Limiting, Logger Strategy, Redis Cache
 
 ---
 
@@ -40,7 +40,7 @@
 | Option | Description | Selected |
 |--------|-------------|----------|
 | Canned Responses Fallback | Dùng câu thoại soạn sẵn tĩnh làm câu trả lời khi Gemini lỗi. | |
-| Exponential Backoff & Pause | Thử lại với thời gian chờ tăng dần, tạm dừng 5 phút nếu lỗi tiếp diễn. | ✓ |
+| Exponential Backoff & Pause | Thử lại với thời gian chờ tăng dần, tạm dừng 5 phút nếu lỗi tiếp diễn. | |
 | Key Rotation + Backoff | Áp dụng Exponential Backoff kết hợp với việc **mở rộng danh sách API keys**, tự động xoay sang key kế tiếp nếu key hiện tại bị lỗi/rate-limited. | ✓ |
 
 **User's choice:** Key Rotation + Backoff (mở rộng Option B với danh sách API Keys tự động xoay vòng).
@@ -48,16 +48,29 @@
 
 ---
 
-## Logger Strategy & Rotation
+## Logger Strategy & PM2 Integration
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Logger Rotation (Mặc định) | Winston logger ghi vào `logs/console.log`, xoay vòng tối đa 10MB, nén zip. Lịch sử chat chỉ lưu RAM 30 phút. | ✓ |
-| Ghi cả lịch sử chat vào đĩa | Ghi toàn bộ tin nhắn trao đổi vào file log riêng. | |
-| Chỉ log ra Console | Không lưu trữ file log hoạt động nào trên ổ đĩa cứng. | |
+| Logger Rotation | Winston logger ghi vào `logs/console.log`, xoay vòng tối đa 10MB, nén zip. | |
+| PM2 Console Log Only | Loại bỏ hoàn toàn việc ghi log ra file trong Winston, chỉ xuất ra Console (stdout/stderr) để PM2 tự động capture và lưu trữ log. | ✓ |
+| Console-Only (No File/PM2) | Không lưu log hoạt động nào. | |
 
-**User's choice:** Logger Rotation hoạt động, Không ghi lịch sử chat xuống đĩa (RAM-only).
-**Notes:** Đảm bảo hiệu năng và sự bảo mật riêng tư tuyệt đối cho các cuộc trò chuyện của người dùng Discord, đồng thời tránh việc ghi file liên tục làm tràn dung lượng đĩa cứng.
+**User's choice:** PM2 Console Log Only (vì người dùng chạy bot bằng PM2, PM2 tự quản lý log).
+**Notes:** Tiết kiệm tài nguyên đĩa cứng, loại bỏ các thao tác ghi file đồng bộ/bất đồng bộ không cần thiết của Node.js, tận dụng triệt để cơ chế log của PM2.
+
+---
+
+## Lịch sử Chat & Cache Redis (Chat History Caching)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Lưu RAM-only | Giữ lịch sử chat trong RAM của ConversationManager (mặc định hiện tại). | |
+| Cache bằng Redis + RAM Fallback | Tích hợp thư viện Redis (`ioredis`) để lưu lịch sử chat ổn định qua các lần PM2 restart/update. Nếu Redis offline, tự động chuyển về RAM. | ✓ |
+| Ghi lịch sử chat ra file | Lưu tin nhắn chi tiết vào file đĩa cứng dạng `.json` hoặc `.log`. | |
+
+**User's choice:** Cache bằng Redis + RAM Fallback.
+**Notes:** Giải pháp xuất sắc giúp duy trì ngữ cảnh của Gemini cho người dùng Discord qua các phiên cập nhật/khởi động lại của PM2, đồng thời có cơ chế phòng vệ cực kỳ an toàn không làm crash bot.
 
 ---
 
