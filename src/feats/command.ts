@@ -3,7 +3,6 @@ import { getFiles } from "../utils/utils.js";
 import { fileURLToPath } from "url";
 import { Collection } from "discord.js-selfbot-v13";
 import { Commands } from "../typings/typings.js";
-// import { logger } from "../utils/logger.js";
 
 export const loadCommands = async (): Promise<Collection<string, Commands>> => {
 	const suffix = ".js";
