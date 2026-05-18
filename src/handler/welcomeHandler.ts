@@ -60,8 +60,8 @@ const WELCOME_INSTRUCTION = `**ALL your thinking must be in authentic first-pers
 **Important: Response must be in Vietnamese.**`;
 
 // Import denied cache từ mentionHandler (sẽ được share)
-let deniedUsersCache: Map<string, DeniedUserCache>;
-let MAX_DENIED_RESPONSES: number;
+let deniedUsersCache: Map<string, DeniedUserCache> | undefined;
+let MAX_DENIED_RESPONSES: number | undefined;
 
 /**
  * Set denied users cache (được gọi từ mentionHandler để share cache)
@@ -124,7 +124,7 @@ function endWelcomeConversation(userId: string, channelId: string): void {
 	welcomeConversations.delete(key);
 
 	// Thêm vào denied cache nếu có
-	if (deniedUsersCache && MAX_DENIED_RESPONSES) {
+	if (deniedUsersCache !== undefined && MAX_DENIED_RESPONSES !== undefined) {
 		deniedUsersCache.set(userId, {
 			count: MAX_DENIED_RESPONSES,
 			firstDeniedAt: Date.now(),
@@ -143,6 +143,7 @@ function endWelcomeConversation(userId: string, channelId: string): void {
 function setWelcomeAutoEnd(
 	userId: string,
 	channelId: string,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	channel: any,
 	geminiService: GeminiService,
 ): void {
@@ -162,40 +163,43 @@ function setWelcomeAutoEnd(
 
 	logger.info(`[Welcome] Set auto-end timer ${delaySec}s cho user ${userId}`);
 
-	conv.autoEndTimer = setTimeout(async () => {
-		try {
-			const currentConv = getWelcomeConversation(userId, channelId);
-			if (!currentConv || currentConv.responseCount >= 3) {
-				// Conversation đã kết thúc hoặc đã đủ 3 responses
-				return;
+	conv.autoEndTimer = setTimeout(() => {
+		void (async () => {
+			try {
+				const currentConv = getWelcomeConversation(userId, channelId);
+				if (!currentConv || currentConv.responseCount >= 3) {
+					// Conversation đã kết thúc hoặc đã đủ 3 responses
+					return;
+				}
+
+				logger.info(
+					`[Welcome] Auto-end timer triggered cho user ${userId}. Gửi respond cuối...`,
+				);
+
+				// Tạo final response
+				const memberName = currentConv.displayName;
+				const finalPrompt = `Chào "${memberName}" một cách thân thiện và kết thúc cuộc trò chuyện. Nhớ gọi tên họ. Bạn chào họ vì muốn để lại cho họ không gian riêng tư, tự do khám phá server, chứ không phải họ rời đi.`;
+				const finalResponse = await geminiService.generateResponseWithHistory(
+					finalPrompt,
+					WELCOME_INSTRUCTION,
+					currentConv.history,
+				);
+
+				if (finalResponse) {
+					// Mention member trong response
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+					await channel.send(`<@${userId}> ${finalResponse}`);
+					logger.info(`[Welcome] Đã gửi auto-end response cho user ${userId}`);
+				}
+
+				// Kết thúc conversation
+				endWelcomeConversation(userId, channelId);
+			} catch (error) {
+				logger.error(`[Welcome] Lỗi khi auto-end conversation cho user ${userId}:`);
+				logger.error(error as Error);
+				endWelcomeConversation(userId, channelId);
 			}
-
-			logger.info(
-				`[Welcome] Auto-end timer triggered cho user ${userId}. Gửi respond cuối...`,
-			);
-
-			// Tạo final response
-			const memberName = currentConv.displayName;
-			const finalPrompt = `Chào "${memberName}" một cách thân thiện và kết thúc cuộc trò chuyện. Nhớ gọi tên họ. Bạn chào họ vì muốn để lại cho họ không gian riêng tư, tự do khám phá server, chứ không phải họ rời đi.`;
-			const finalResponse = await geminiService.generateResponseWithHistory(
-				finalPrompt,
-				WELCOME_INSTRUCTION,
-				currentConv.history,
-			);
-
-			if (finalResponse) {
-				// Mention member trong response
-				await channel.send(`<@${userId}> ${finalResponse}`);
-				logger.info(`[Welcome] Đã gửi auto-end response cho user ${userId}`);
-			}
-
-			// Kết thúc conversation
-			endWelcomeConversation(userId, channelId);
-		} catch (error) {
-			logger.error(`[Welcome] Lỗi khi auto-end conversation cho user ${userId}:`);
-			logger.error(error as Error);
-			endWelcomeConversation(userId, channelId);
-		}
+		})();
 	}, delayMs);
 }
 
@@ -231,7 +235,7 @@ async function handleWelcomeMessage(
 				displayName = member.displayName || member.user.username || 'bạn';
 				logger.info(`[Welcome] Display name: ${displayName}`);
 			}
-		} catch (error) {
+		} catch {
 			logger.warn(`[Welcome] Không thể fetch member info cho ${newMemberId}`);
 		}
 
@@ -309,7 +313,7 @@ async function handleWelcomeResponse(
 		if (!content) return false;
 
 		logger.info(
-			`[Welcome] Nhận response từ member ${userId}: "${content}" (${welcomeConv.responseCount}/3)`,
+			`[Welcome] Nhận response từ member ${userId}: "${content}" (${String(welcomeConv.responseCount)}/3)`,
 		);
 
 		// Lưu message của user
@@ -350,7 +354,7 @@ async function handleWelcomeResponse(
 			welcomeConv.history.push({ role: 'assistant', content: response });
 
 			logger.info(
-				`[Welcome] Đã gửi response cho member ${userId} (${welcomeConv.responseCount}/3)`,
+				`[Welcome] Đã gửi response cho member ${userId} (${String(welcomeConv.responseCount)}/3)`,
 			);
 
 			if (isLastResponse) {
@@ -376,8 +380,9 @@ async function handleWelcomeResponse(
 /**
  * Handler chính để xử lý welcome messages
  */
-export const welcomeHandler = async (agent: BaseAgent) => {
+export const welcomeHandler = (agent: BaseAgent) => {
 	// Check if welcome feature is enabled
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	if (!WELCOME_ENABLED) {
 		logger.info('[WelcomeHandler] Welcome feature is DISABLED');
 		return;
@@ -402,7 +407,7 @@ export const welcomeHandler = async (agent: BaseAgent) => {
 			if (message.author.id === agent.user?.id) return;
 
 			// Bỏ qua bot messages (trừ welcome bot)
-			if (message.author?.bot && message.author.id !== WELCOME_BOT_ID) return;
+			if (message.author.bot && message.author.id !== WELCOME_BOT_ID) return;
 
 			// Xử lý welcome message từ welcome bot
 			const isWelcomeMsg = await handleWelcomeMessage(message, geminiService);
