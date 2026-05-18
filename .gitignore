@@ -13,3 +13,8 @@ dest/src/feats/B2KI.js
 test.js
 
 dest/
+
+# User config files (contain sensitive tokens)
+*.json
+!package.json
+!tsconfig.json
