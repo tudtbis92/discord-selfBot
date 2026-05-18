@@ -18,7 +18,7 @@ const PRESENCE_STATUSES = [
 	{ name: 'Mãi thuộc về Boss', details: 'Chủ nhân duy nhất của đời Annie là anh!' },
 ];
 
-export const loadPresence = async (client: Client) => {
+export const loadPresence = (client: Client): Promise<void> => {
 	// Khởi tạo trạng thái đầu tiên đầy tình cảm
 	const initialStatus = PRESENCE_STATUSES[0];
 	const rpc = new RichPresence(client)
@@ -34,6 +34,7 @@ export const loadPresence = async (client: Client) => {
 
 	client.user?.setPresence({ activities: [rpc] });
 	logger.info(`[Presence] Đã load trạng thái ban đầu: ${initialStatus.name}`);
+	return Promise.resolve();
 };
 
 /**
