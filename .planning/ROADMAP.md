@@ -50,6 +50,10 @@
 #### Phase 6: Conversation History & Initiator
 - **Goal:** Implement shared per-channel conversation history via Redis/RAM cache, and a conversation initiator mechanism.
 - **Requirements:** `AUTOCHAT-06`, `AUTOCHAT-07`
+- **Plans:** 2 plans
+- **Plan list:**
+  - [ ] 06-01-PLAN.md — ChannelHistoryManager with Redis/RAM cache, history injection into Gemini prompt, history write after send
+  - [ ] 06-02-PLAN.md — Rotating initiator with Lua script, periodic check timer, Gemini-generated opening topic with burst typing
 - **Success Criteria:**
   1. Conversation history is stored per channel in Redis (with RAM fallback). All 5 bots read from the same key.
   2. Recent channel history is included in the Gemini prompt so responses are contextually coherent.
@@ -67,4 +71,4 @@
 | 3. Bug Fixes & Optimization | v1.0 | 4/4 | Complete | 2026-05-18 |
 | 4. Config & Personality Injection | v1.1 | 3/3 | Complete | 2026-05-18 |
 | 5. Triggers & Human-like Response | v1.1 | 1/1 | Planned | — |
-| 6. History & Initiator | v1.1 | 0/? | Planned | — |
+| 6. History & Initiator | v1.1 | 0/2 | Planned | — |
