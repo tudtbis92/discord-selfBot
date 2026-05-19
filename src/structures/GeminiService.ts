@@ -287,7 +287,7 @@ class GeminiService {
 		],
 	};
 
-	private systemInstruction: string = '';
+	public systemInstruction: string = '';
 	private characterName: string = '';
 
 	constructor(apiKeys?: string[]) {
@@ -362,6 +362,10 @@ class GeminiService {
 		systemInstruction: string,
 		history: Array<{ role: 'user' | 'assistant'; content: string }>,
 	): Promise<string> {
+		const finalInstruction = (systemInstruction.endsWith('.txt') || !systemInstruction)
+			? this.systemInstruction
+			: systemInstruction;
+
 		return withRetryAndRotation(
 			async () => {
 				const contents = history.map((msg) => ({
@@ -378,7 +382,7 @@ class GeminiService {
 					model: this.model,
 					config: {
 						...this.defaultConfig,
-						systemInstruction,
+						systemInstruction: finalInstruction,
 					},
 					contents,
 				});
@@ -404,6 +408,10 @@ class GeminiService {
 		prompt: string,
 		systemInstruction: string,
 	): Promise<string> {
+		const finalInstruction = (systemInstruction.endsWith('.txt') || !systemInstruction)
+			? this.systemInstruction
+			: systemInstruction;
+
 		return withRetryAndRotation(
 			async () => {
 				const contents = [
@@ -417,7 +425,7 @@ class GeminiService {
 					model: this.model,
 					config: {
 						...this.defaultConfig,
-						systemInstruction,
+						systemInstruction: finalInstruction,
 					},
 					contents,
 				});

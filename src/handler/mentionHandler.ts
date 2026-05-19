@@ -1,7 +1,7 @@
 import { Message, User } from 'discord.js-selfbot-v13';
 import { BaseAgent } from '../structures/BaseAgent.js';
 import { logger } from '../utils/logger.js';
-import GeminiService from '../structures/GeminiService.js';
+import GeminiService, { geminiService } from '../structures/GeminiService.js';
 import { ConversationManager } from '../structures/ConversationManager.js';
 import { MENTION_INSTRUCTION } from '../config/mentionInstruction.js';
 import { setDeniedUsersCache } from './welcomeHandler.js';
@@ -174,42 +174,6 @@ function isTempAllowedUser(userId: string): boolean {
 	return true;
 }
 
-/**
- * Kiểm tra và cập nhật cache cho user bị từ chối
- * @returns true nếu nên phản hồi, false nếu nên bỏ qua
- */
-function shouldRespondToDeniedUser(userId: string): boolean {
-	const cached = deniedUsersCache.get(userId);
-
-	if (!cached) {
-		// Lần đầu tiên, thêm vào cache
-		deniedUsersCache.set(userId, {
-			count: 1,
-			firstDeniedAt: Date.now(),
-		});
-		return true;
-	}
-
-	// Kiểm tra xem cache đã hết hạn chưa
-	if (Date.now() - cached.firstDeniedAt > CACHE_EXPIRY_TIME) {
-		// Cache hết hạn, reset lại
-		deniedUsersCache.set(userId, {
-			count: 1,
-			firstDeniedAt: Date.now(),
-		});
-		return true;
-	}
-
-	// Kiểm tra số lần đã phản hồi
-	if (cached.count >= MAX_DENIED_RESPONSES) {
-		// Đã phản hồi đủ 2 lần, bỏ qua
-		return false;
-	}
-
-	// Tăng count và phản hồi
-	cached.count++;
-	return true;
-}
 
 /**
  * Tách tin nhắn dài thành nhiều phần để tránh vượt quá giới hạn Discord
@@ -364,49 +328,14 @@ async function handleAdminCommand(
 	return false;
 }
 
-/**
- * Xử lý khi user không được phép truy cập mention bot.
- * Trả về thông điệp từ chối ngẫu nhiên sau khi trì hoãn ngẫu nhiên.
- */
-async function handleDeniedUserResponse(message: Message, userId: string): Promise<void> {
-	if (!shouldRespondToDeniedUser(userId)) {
-		logger.info(
-			`[MentionHandler] User ${message.author.tag} (${userId}) đã bị từ chối ${String(MAX_DENIED_RESPONSES)} lần. Bỏ qua không phản hồi.`,
-		);
-		return;
-	}
-
-	// Random delay từ 15-50 giây (15000-50000ms)
-	const delayMs = Math.floor(Math.random() * (50000 - 15000 + 1)) + 15000;
-	const delaySec = (delayMs / 1000).toFixed(1);
-
-	const cached = deniedUsersCache.get(userId);
-	const deniedCount = cached?.count ?? 1;
-
-	logger.info(
-		`[MentionHandler] User ${message.author.tag} (${userId}) không được phép. Lần từ chối ${String(deniedCount)}/${String(MAX_DENIED_RESPONSES)}. Delay ${delaySec}s...`,
-	);
-
-	// Hiển thị typing indicator trong khi delay
-	await message.channel.sendTyping();
-
-	// Delay random 15-50s
-	await new Promise((resolve) => setTimeout(resolve, delayMs));
-
-	// Gửi phản hồi từ chối
-	const randomResponse = DENIED_RESPONSES[Math.floor(Math.random() * DENIED_RESPONSES.length)];
-	await message.reply(randomResponse);
-	logger.info(
-		`[MentionHandler] Đã từ chối user ${message.author.tag} sau ${delaySec}s (${String(deniedCount)}/${String(MAX_DENIED_RESPONSES)})`,
-	);
-}
 
 /**
  * Xác định System Instruction phù hợp dựa trên vai trò của User.
  */
 function getSystemInstruction(userId: string): string {
 	const isTempUser = isTempAllowedUser(userId);
-	return isTempUser ? TEMP_USER_INSTRUCTION : MENTION_INSTRUCTION;
+	if (isTempUser) return TEMP_USER_INSTRUCTION;
+	return geminiService.systemInstruction || MENTION_INSTRUCTION;
 }
 
 /**
@@ -571,7 +500,6 @@ async function handleSilentModeCheck(
  * Handler xử lý khi bot được mention và quản lý cuộc trò chuyện
  */
 export const mentionHandler = (agent: BaseAgent): void => {
-	const geminiService = new GeminiService(agent.config.geminiApiKeys);
 	const conversationManager = new ConversationManager(agent.config.redisUri);
 
 	// Share denied cache với welcomeHandler
@@ -609,6 +537,12 @@ export const mentionHandler = (agent: BaseAgent): void => {
 
 			const { userId, channelId, isMentioned, content } = parseMentionContext(message, agent);
 
+			// Bỏ qua hoàn toàn nếu là tin nhắn từ các bot khác trong nhóm autoChat (để autoChat.ts xử lý)
+			const botIDs = new Set<string>(agent.config.autoChatBotIDs ?? []);
+			if (botIDs.has(userId)) {
+				return;
+			}
+
 			// Kiểm tra xem admin có đang thêm temporary user không
 			if (userId === ALLOWED_USER_ID && isMentioned) {
 				const handled = await handleAdminCommand(message, userId, agent);
@@ -617,10 +551,7 @@ export const mentionHandler = (agent: BaseAgent): void => {
 
 			// Kiểm tra xem user có được phép không
 			if (userId !== ALLOWED_USER_ID && !isTempAllowedUser(userId)) {
-				// Nếu được mention thì phản hồi từ chối sau delay random
-				if (isMentioned) {
-					await handleDeniedUserResponse(message, userId);
-				}
+				// Bỏ qua hoàn toàn, không trả lời các mention của các user khác
 				return;
 			}
 
