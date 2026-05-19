@@ -2,25 +2,25 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Advanced AutoChat & Multi-bot Roleplay
-status: Phase 5 complete — 1/1 plans executed
-last_updated: "2026-05-19T02:00:00.000Z"
-last_activity: 2026-05-19 -- Phase 5 plan 01 executed
+status: Phase 6 context gathered
+last_updated: "2026-05-19T08:27:00.000Z"
+last_activity: 2026-05-19 -- Phase 6 context discussion completed
 progress:
-  total_phases: 5
-  completed_phases: 3
+  total_phases: 6
+  completed_phases: 5
   total_plans: 5
   completed_plans: 5
-  percent: 100
+  percent: 83
 ---
 
 # Project State
 
 ## Current Position
 
-Phase: 5 (Mention/Reply Triggers & Human-like Response) — COMPLETE
-Plan: 05-01 complete
-Status: Phase 5 complete — 1/1 plans executed
-Last activity: 2026-05-19 -- Phase 5 plan 01 executed
+Phase: 6 (Conversation History & Initiator) — Context gathered, ready for planning
+Plan: Awaiting plan creation
+Status: Phase 6 context discussion completed — 14 decisions captured
+Last activity: 2026-05-19 -- Phase 6 context discussion completed
 
 ## Key Decisions
 
@@ -29,8 +29,12 @@ Last activity: 2026-05-19 -- Phase 5 plan 01 executed
 - Mention extraction validates against autoChatBotIDs; invalid mentions stripped
 - Response routing: 0 mentions = reply, 1+ mentions = standalone message
 - geminiService imported directly (not via this.agent)
+- ChannelHistoryManager: new class with Redis key `autochat:history:{channelId}` (no `owo:` prefix)
+- History: last 15-20 messages, all bots included, format `Name: content`
+- Initiator: rotating round-robin, check every 5-10 min, auto-failover if offline
+- Topic: Gemini-generated in-character, @mention all 4 other bots
 
 ## Operator Next Steps
 
-- Verify Phase 5 with `/gsd-verify-work`
-- Plan next phase with `/gsd-plan-phase 6` or `/gsd-next`
+- Plan Phase 6 with `/gsd-plan-phase 6`
+- Or skip research with `/gsd-plan-phase 6 --skip-research`
