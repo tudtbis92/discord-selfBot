@@ -116,6 +116,9 @@ export class AutoChatManager {
 	private readonly MAX_QUEUE = 3;
 	private readonly DEDUP_WINDOW_MS = 10_000;
 
+	private lastResponseTime: number = 0;
+	private readonly SELF_COOLDOWN_MS = 25_000; // 25s local self cooldown
+
 	private redisCache: RedisCacheManager;
 	private channelHistory: ChannelHistoryManager;
 	private initiatorInterval?: NodeJS.Timeout;
@@ -218,6 +221,40 @@ return { 1, "claimed" }
 		}
 	}
 
+	private async acquireChannelLock(channelId: string, myBotId: string): Promise<boolean> {
+		if (!this.redisCache.connected) return true;
+		const rawRedis = this.redisCache.rawRedis();
+		if (!rawRedis) return true;
+		try {
+			const key = `autochat:channel_lock:${channelId}`;
+			// Acquire locks for 12 seconds
+			const result = await rawRedis.set(key, myBotId, 'PX', 12000, 'NX');
+			return result === 'OK';
+		} catch (error) {
+			logger.error(
+				`[AutoChat] Error acquiring channel lock: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return true;
+		}
+	}
+
+	private async releaseChannelLock(channelId: string, myBotId: string): Promise<void> {
+		if (!this.redisCache.connected) return;
+		const rawRedis = this.redisCache.rawRedis();
+		if (!rawRedis) return;
+		try {
+			const key = `autochat:channel_lock:${channelId}`;
+			const current = await rawRedis.get(key);
+			if (current === myBotId) {
+				await rawRedis.del(key);
+			}
+		} catch (error) {
+			logger.error(
+				`[AutoChat] Error releasing channel lock: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
 	private setupMessageListener() {
 		if (!this.autoChatChannel) return;
 
@@ -238,7 +275,7 @@ return { 1, "claimed" }
 		if (message.author.id === this.agent.user?.id) return false;
 
 		const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
-		if (!botIDs.has(message.author.id)) return false;
+		const isFromOtherBot = botIDs.has(message.author.id);
 
 		const isMentioned = this.agent.user?.id
 			? message.mentions.users.has(this.agent.user.id)
@@ -250,7 +287,45 @@ return { 1, "claimed" }
 			this.autoChatChannel.messages.cache.get(refId)?.author.id ===
 				this.agent.user?.id;
 
-		return isMentioned || isReply;
+		if (!isMentioned && !isReply) return false;
+
+		// 1. Enforce local self cooldown to avoid double response from same bot too fast
+		const now = Date.now();
+		if (now - this.lastResponseTime < this.SELF_COOLDOWN_MS) {
+			logger.debug(
+				`[AutoChat] Trigger ignored due to local self-cooldown (${String(Math.ceil((this.SELF_COOLDOWN_MS - (now - this.lastResponseTime)) / 1000))}s remaining)`,
+			);
+			return false;
+		}
+
+		// 2. Enforce response probability based on sender type to prevent infinite feedback loops
+		const roll = Math.random();
+
+		if (isFromOtherBot) {
+			// Lower probability for bot-to-bot interactions to prevent loops
+			if (isMentioned && roll > 0.60) {
+				logger.debug(
+					`[AutoChat] Mention from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.60)`,
+				);
+				return false;
+			}
+			if (isReply && !isMentioned && roll > 0.35) {
+				logger.debug(
+					`[AutoChat] Reply from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.35)`,
+				);
+				return false;
+			}
+		} else {
+			// Higher probability for actual users
+			if (isMentioned && roll > 0.90) {
+				return false;
+			}
+			if (isReply && !isMentioned && roll > 0.65) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private enqueueTrigger(message: Message): boolean {
@@ -309,22 +384,110 @@ return { 1, "claimed" }
 		text: string,
 		knownBotIDs: Set<string>,
 	): { cleanedText: string; mentionIDs: string[] } {
+		const myId = this.agent.user?.id;
+		const myName = this.agent.user?.displayName || this.agent.user?.username || 'Tôi';
+
+		const botProfiles = [
+			{ idKey: 'dacam', keywords: ['da cam', 'dacam', 'trump', 'donald'], displayName: 'Da Cam' },
+			{ idKey: 'putoang', keywords: ['pu toang', 'putoang', 'putin', 'tin hói', 'tin hoi'], displayName: 'Pu Toang' },
+			{ idKey: 'kimbeo', keywords: ['kim béo', 'kim beo', 'ủn', 'kim jong un', 'kim jong-un'], displayName: 'Kim Béo' },
+			{ idKey: 'tamvannghe', keywords: ['tám văn nghệ', 'tam van nghe', 'tô lâm', 'to lam', 'anh tám', 'anh tam', 'lâm dát vàng', 'lam dat vang'], displayName: 'Tám Văn Nghệ' },
+			{ idKey: 'gaupooh', keywords: ['gấu pooh', 'gau pooh', 'tập cận bình', 'tap can binh', 'tập hí', 'tap hi'], displayName: 'Gấu Pooh' }
+		];
+
+		// Dynamic mapping of ID to profile
+		const idToProfile = new Map<string, typeof botProfiles[0]>();
+		const profileIdMap = new Map<string, string>(); // profile.idKey -> actual discord ID
+
+		for (const id of knownBotIDs) {
+			const user = this.agent.users.cache.get(id);
+			if (!user) continue;
+			const nameLower = (user.displayName || user.username || '').toLowerCase();
+			
+			const matchedProfile = botProfiles.find(p => 
+				p.keywords.some(k => nameLower.includes(k)) || 
+				nameLower.includes(p.displayName.toLowerCase())
+			);
+			
+			if (matchedProfile) {
+				idToProfile.set(id, matchedProfile);
+				profileIdMap.set(matchedProfile.idKey, id);
+			}
+		}
+
+		let processedText = text;
+
+		// 1. Correct mismatched name-mention patterns and upgrade plain name tags to real mentions
+		// We sort profiles and keywords to process longer keywords first to avoid partial matching
+		const allKeywords: Array<{ keyword: string; profile: typeof botProfiles[0] }> = [];
+		for (const profile of botProfiles) {
+			for (const kw of profile.keywords) {
+				allKeywords.push({ keyword: kw, profile });
+			}
+			allKeywords.push({ keyword: profile.displayName.toLowerCase(), profile });
+		}
+		allKeywords.sort((a, b) => b.keyword.length - a.keyword.length);
+
+		for (const item of allKeywords) {
+			const targetId = profileIdMap.get(item.profile.idKey);
+			if (!targetId) continue;
+
+			// Match @keyword optionally followed by a mention or another tag to capture mismatches like @Pu Toang <@da_cam_id>
+			const escapedKw = item.keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+			const regex = new RegExp(`@${escapedKw}\\s*(<@!?(\\d+)>)?`, 'gi');
+
+			processedText = processedText.replace(regex, (_fullMatch, _mentionGroup, _idGroup) => {
+				// If it is a self-mention
+				if (targetId === myId) {
+					return `@${item.profile.displayName}`; // keep it as plain text to avoid self-mention
+				}
+				// Otherwise, convert/correct to a real mention
+				return `<@${targetId}>`;
+			});
+		}
+
+		// 2. Scan for any remaining raw mentions and handle duplicates/self-mentions
 		const mentionRegex = /<@!?(\d+)>/g;
-		const matches = [...text.matchAll(mentionRegex)];
-		const validMentions: string[] = [];
+		const matches = [...processedText.matchAll(mentionRegex)];
+		const allMentions: string[] = [];
 
 		for (const match of matches) {
 			const id = match[1];
 			if (knownBotIDs.has(id)) {
-				validMentions.push(id);
+				allMentions.push(id);
 			}
 		}
 
-		const cleanedText = text
+		// Keep only the first unique mention to prevent multi-bot spam cascades
+		const uniqueMentions = Array.from(new Set(allMentions));
+		const validMentions: string[] = [];
+
+		// Filter out self-mentions from the allowed mention list
+		if (uniqueMentions.length > 0) {
+			const firstMention = uniqueMentions[0];
+			if (firstMention !== myId) {
+				validMentions.push(firstMention);
+			}
+		}
+
+		const cleanedText = processedText
 			.replace(/<@!?\d+>/g, (fullMatch) => {
 				const idMatch = fullMatch.match(/<@!?(\d+)>/);
 				if (idMatch && knownBotIDs.has(idMatch[1])) {
-					return fullMatch;
+					const id = idMatch[1];
+					// If this is a self-mention
+					if (id === myId) {
+						return `@${myName}`; // replace with plain text name
+					}
+					// If this is the single allowed mention, keep it
+					if (validMentions.includes(id)) {
+						return fullMatch;
+					} else {
+						// Replace excess mentions with plain text names
+						const cachedUser = this.agent.users.cache.get(id);
+						const name = cachedUser ? (cachedUser.displayName || cachedUser.username) : 'Thành viên';
+						return `@${name}`;
+					}
 				}
 				return '';
 			})
@@ -379,6 +542,9 @@ return { 1, "claimed" }
 				await new Promise((resolve) => setTimeout(resolve, ranInt(2000, 5000)));
 			}
 		}
+
+		// Update response timestamp to prevent immediate re-trigger
+		this.lastResponseTime = Date.now();
 	}
 
 	private splitLongResponse(text: string): string[] {
@@ -419,10 +585,24 @@ return { 1, "claimed" }
 		const trigger = this.queue.shift();
 		if (!trigger) return;
 
-		this.isProcessing = true;
-
-		const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
+		const myBotId = this.agent.user?.id;
 		const channelId = this.autoChatChannel ? this.autoChatChannel.id : trigger.message.channel.id;
+
+		if (!myBotId) {
+			void this.processQueue();
+			return;
+		}
+
+		// Try to acquire distributed channel lock to avoid parallel responses
+		const gotLock = await this.acquireChannelLock(channelId, myBotId);
+		if (!gotLock) {
+			logger.debug(`[AutoChat] Another bot is already responding to this channel turn, skipping trigger`);
+			void this.processQueue();
+			return;
+		}
+
+		this.isProcessing = true;
+		const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
 
 		try {
 			// Read channel history
@@ -454,6 +634,7 @@ return { 1, "claimed" }
 				`[AutoChat] Gemini response failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		} finally {
+			await this.releaseChannelLock(channelId, myBotId);
 			this.isProcessing = false;
 			void this.processQueue();
 		}
