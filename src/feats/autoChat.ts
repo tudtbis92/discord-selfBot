@@ -288,14 +288,21 @@ return { 1, "claimed" }
 
 			if (message.author.id === this.agent.user?.id) return;
 
-			if (this.isTrigger(message)) {
-				this.enqueueTrigger(message);
-				void this.processQueue();
-			}
+			// Asynchronously verify if it's a trigger and process
+			void (async () => {
+				try {
+					if (await this.isTrigger(message)) {
+						this.enqueueTrigger(message);
+						void this.processQueue();
+					}
+				} catch (err) {
+					logger.error(`[AutoChat] Error checking isTrigger: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			})();
 		});
 	}
 
-	private isTrigger(message: Message): boolean {
+	private async isTrigger(message: Message): Promise<boolean> {
 		if (message.channel.id !== this.autoChatChannel?.id) return false;
 		if (message.author.id === this.agent.user?.id) return false;
 
@@ -307,10 +314,20 @@ return { 1, "claimed" }
 			: false;
 
 		const refId = message.reference?.messageId;
-		const isReply =
-			refId !== undefined &&
-			this.autoChatChannel.messages.cache.get(refId)?.author.id ===
-				this.agent.user?.id;
+		let isReply = false;
+		if (refId !== undefined && this.autoChatChannel) {
+			const cachedMsg = this.autoChatChannel.messages.cache.get(refId);
+			if (cachedMsg) {
+				isReply = cachedMsg.author.id === this.agent.user?.id;
+			} else {
+				try {
+					const fetchedMsg = await this.autoChatChannel.messages.fetch(refId);
+					isReply = fetchedMsg?.author.id === this.agent.user?.id;
+				} catch {
+					isReply = false;
+				}
+			}
+		}
 
 		// Check if the channel has active conversation (last message within 90 seconds)
 		const isChannelActive = (Date.now() - this.lastChannelMessageTime) < 90000;
@@ -329,9 +346,11 @@ return { 1, "claimed" }
 
 		// 1. Enforce local self cooldown to avoid double response from same bot too fast
 		const now = Date.now();
-		if (now - this.lastResponseTime < this.SELF_COOLDOWN_MS) {
+		// If directly mentioned or replied to, bypass or use a super low cooldown (3s) to keep conversation alive
+		const effectiveCooldown = (isMentioned || isReply) ? 3000 : this.SELF_COOLDOWN_MS;
+		if (now - this.lastResponseTime < effectiveCooldown) {
 			logger.debug(
-				`[AutoChat] Trigger ignored due to local self-cooldown (${String(Math.ceil((this.SELF_COOLDOWN_MS - (now - this.lastResponseTime)) / 1000))}s remaining)`,
+				`[AutoChat] Trigger ignored due to local self-cooldown (${String(Math.ceil((effectiveCooldown - (now - this.lastResponseTime)) / 1000))}s remaining)`,
 			);
 			return false;
 		}
@@ -340,18 +359,12 @@ return { 1, "claimed" }
 		const roll = Math.random();
 
 		if (isFromOtherBot) {
-			// Higher response probability for direct mentions/replies from other bots to ensure discussion flow
-			if (isMentioned && roll > 0.90) {
-				logger.debug(
-					`[AutoChat] Mention from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.90)`,
-				);
-				return false;
+			// Mentions and replies from other bots are always responded to (100% probability) to ensure flawless discussion flow
+			if (isMentioned) {
+				return true;
 			}
-			if (isReply && !isMentioned && roll > 0.75) {
-				logger.debug(
-					`[AutoChat] Reply from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.75)`,
-				);
-				return false;
+			if (isReply) {
+				return true;
 			}
 		} else {
 			// Higher probability for actual users
