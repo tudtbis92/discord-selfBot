@@ -57,7 +57,28 @@ export class BaseAgent extends Client {
 			this.commands = await loadCommands();
 		}
 
-		this.activeChannel = this.channels.cache.get(this.config.channelID[0]) as TextChannel;
+		const activeChannelFetched = await this.channels.fetch(this.config.channelID[0]).catch(() => null);
+		this.activeChannel = (activeChannelFetched || this.channels.cache.get(this.config.channelID[0])) as TextChannel;
+
+		// Tự động kết nối Voice Channel nếu có channelID nào thuộc loại Voice/Stage Channel
+		for (const channelId of this.config.channelID) {
+			try {
+				const channel = await this.channels.fetch(channelId).catch(() => null);
+				if (channel && (channel.type === 'GUILD_VOICE' || channel.type === 'GUILD_STAGE_VOICE')) {
+					logger.info(`[Voice] Phát hiện voice channel: ${channel.name} (${channel.id}). Đang tiến hành tự động kết nối...`);
+					// @ts-ignore
+					await this.voice.joinChannel(channel, {
+						selfMute: false,
+						selfDeaf: false,
+						selfVideo: false,
+					});
+					logger.info(`[Voice] Tự động kết nối thành công vào voice channel: ${channel.name}`);
+					break; // Chỉ tham gia 1 voice channel
+				}
+			} catch (error) {
+				logger.error(`[Voice] Lỗi khi tự động tham gia voice channel với ID ${channelId}: ${String(error)}`);
+			}
+		}
 
 		// Khởi tạo Auto Chat Manager
 		if (this.config.autoChat) {
