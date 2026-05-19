@@ -117,6 +117,7 @@ export class AutoChatManager {
 	private readonly DEDUP_WINDOW_MS = 10_000;
 
 	private lastResponseTime: number = 0;
+	private lastChannelMessageTime: number = 0;
 	private readonly SELF_COOLDOWN_MS = 25_000; // 25s local self cooldown
 
 	private redisCache: RedisCacheManager;
@@ -261,6 +262,30 @@ return { 1, "claimed" }
 		this.agent.on('messageCreate', (message: Message) => {
 			if (!this.autoChatChannel || !this.agent.config.autoChat) return;
 			if (message.channel.id !== this.autoChatChannel.id) return;
+
+			const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
+			const isMyMessage = message.author.id === this.agent.user?.id;
+			const isBotMessage = botIDs.has(message.author.id) || isMyMessage;
+
+			// Update the last channel message time to track active conversation state
+			// Only update if it is one of the other 5 bots speaking
+			if (isBotMessage && !isMyMessage) {
+				this.lastChannelMessageTime = Date.now();
+			}
+
+			// Add the message to the channel history to keep it synced and track activity
+			// Only record messages sent by the 5 bots
+			if (isBotMessage) {
+				const senderName = message.author.displayName || message.author.username;
+				void this.channelHistory.addMessage(message.channel.id, {
+					sender: senderName,
+					content: message.content,
+					timestamp: Date.now(),
+				}).catch((err) => {
+					logger.error(`[AutoChat] Error adding incoming message to history: ${err instanceof Error ? err.message : String(err)}`);
+				});
+			}
+
 			if (message.author.id === this.agent.user?.id) return;
 
 			if (this.isTrigger(message)) {
@@ -287,7 +312,20 @@ return { 1, "claimed" }
 			this.autoChatChannel.messages.cache.get(refId)?.author.id ===
 				this.agent.user?.id;
 
-		if (!isMentioned && !isReply) return false;
+		// Check if the channel has active conversation (last message within 90 seconds)
+		const isChannelActive = (Date.now() - this.lastChannelMessageTime) < 90000;
+
+		if (!isMentioned && !isReply) {
+			if (!isChannelActive) return false;
+
+			// Chime-in probability: 20% to interject
+			const chimeRoll = Math.random();
+			if (chimeRoll > 0.20) return false;
+
+			logger.debug(
+				`[AutoChat] Chiming in on active conversation (roll: ${chimeRoll.toFixed(2)} <= 0.20)`,
+			);
+		}
 
 		// 1. Enforce local self cooldown to avoid double response from same bot too fast
 		const now = Date.now();
@@ -298,29 +336,29 @@ return { 1, "claimed" }
 			return false;
 		}
 
-		// 2. Enforce response probability based on sender type to prevent infinite feedback loops
+		// 2. Enforce response probability based on sender type
 		const roll = Math.random();
 
 		if (isFromOtherBot) {
-			// Lower probability for bot-to-bot interactions to prevent loops
-			if (isMentioned && roll > 0.60) {
+			// Higher response probability for direct mentions/replies from other bots to ensure discussion flow
+			if (isMentioned && roll > 0.90) {
 				logger.debug(
-					`[AutoChat] Mention from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.60)`,
+					`[AutoChat] Mention from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.90)`,
 				);
 				return false;
 			}
-			if (isReply && !isMentioned && roll > 0.35) {
+			if (isReply && !isMentioned && roll > 0.75) {
 				logger.debug(
-					`[AutoChat] Reply from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.35)`,
+					`[AutoChat] Reply from other bot ignored due to probability roll (${roll.toFixed(2)} > 0.75)`,
 				);
 				return false;
 			}
 		} else {
 			// Higher probability for actual users
-			if (isMentioned && roll > 0.90) {
+			if (isMentioned && roll > 0.95) {
 				return false;
 			}
-			if (isReply && !isMentioned && roll > 0.65) {
+			if (isReply && !isMentioned && roll > 0.85) {
 				return false;
 			}
 		}
@@ -458,17 +496,9 @@ return { 1, "claimed" }
 			}
 		}
 
-		// Keep only the first unique mention to prevent multi-bot spam cascades
-		const uniqueMentions = Array.from(new Set(allMentions));
-		const validMentions: string[] = [];
-
-		// Filter out self-mentions from the allowed mention list
-		if (uniqueMentions.length > 0) {
-			const firstMention = uniqueMentions[0];
-			if (firstMention !== myId) {
-				validMentions.push(firstMention);
-			}
-		}
+		// Keep up to 3 unique mentions (excluding self-mentions) to support the priority order and prevent excessive spam
+		const uniqueMentions = Array.from(new Set(allMentions)).filter((id) => id !== myId);
+		const validMentions = uniqueMentions.slice(0, 3);
 
 		const cleanedText = processedText
 			.replace(/<@!?\d+>/g, (fullMatch) => {
@@ -545,6 +575,7 @@ return { 1, "claimed" }
 
 		// Update response timestamp to prevent immediate re-trigger
 		this.lastResponseTime = Date.now();
+		this.lastChannelMessageTime = Date.now();
 	}
 
 	private splitLongResponse(text: string): string[] {
@@ -586,15 +617,31 @@ return { 1, "claimed" }
 		if (!trigger) return;
 
 		const myBotId = this.agent.user?.id;
-		const channelId = this.autoChatChannel ? this.autoChatChannel.id : trigger.message.channel.id;
+		const channel = this.autoChatChannel || (trigger.message.channel as TextChannel);
+		const channelId = channel.id;
 
 		if (!myBotId) {
 			void this.processQueue();
 			return;
 		}
 
-		// Try to acquire distributed channel lock to avoid parallel responses
-		const gotLock = await this.acquireChannelLock(channelId, myBotId);
+		// Try to acquire distributed channel lock to avoid parallel responses, with retry backoff
+		let gotLock = false;
+		let attempts = 0;
+		const maxAttempts = 3;
+
+		while (attempts < maxAttempts) {
+			gotLock = await this.acquireChannelLock(channelId, myBotId);
+			if (gotLock) break;
+
+			attempts++;
+			const delay = ranInt(3000, 6000);
+			logger.debug(
+				`[AutoChat] Channel lock is busy. Attempt ${attempts}/${maxAttempts} failed. Retrying in ${delay}ms...`,
+			);
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
+
 		if (!gotLock) {
 			logger.debug(`[AutoChat] Another bot is already responding to this channel turn, skipping trigger`);
 			void this.processQueue();
@@ -605,23 +652,71 @@ return { 1, "claimed" }
 		const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
 
 		try {
-			// Read channel history
-			const historyEntries = await this.channelHistory.getHistory(channelId);
-			const recent = historyEntries.slice(-20);
-			const history = recent.map((e) => ({
-				role: 'user' as const,
-				content: `${e.sender}: ${e.content}`,
-			}));
+			// Fetch authoritative recent messages from Discord channel, filtering to only keep messages from the 5 bots
+			const discordMessages = await channel.messages.fetch({ limit: 50 });
+			const sortedMessages = [...discordMessages.values()]
+				.reverse()
+				.filter((m) => botIDs.has(m.author.id) || m.author.id === myBotId)
+				.slice(-20);
+			
+			const history = sortedMessages.map((m) => {
+				const sender = m.author.displayName || m.author.username;
+				return {
+					role: 'user' as const,
+					content: `${sender}: ${m.content}`,
+				};
+			});
+
+			// Calculate message counts for each bot in the 5 bots list to find the least active one
+			const counts: Record<string, number> = {};
+			for (const id of botIDs) {
+				counts[id] = 0;
+			}
+			if (myBotId) {
+				counts[myBotId] = 0;
+			}
+
+			for (const m of sortedMessages) {
+				if (counts[m.author.id] !== undefined) {
+					counts[m.author.id]++;
+				}
+			}
+
+			let leastActiveBotId: string | null = null;
+			let minCount = Infinity;
+
+			for (const id of Object.keys(counts)) {
+				if (id === myBotId) continue; // Exclude ourselves
+				if (counts[id] < minCount) {
+					minCount = counts[id];
+					leastActiveBotId = id;
+				}
+			}
+
+			let leastActiveBotName = 'Thành viên';
+			if (leastActiveBotId) {
+				const user = this.agent.users.cache.get(leastActiveBotId);
+				leastActiveBotName = user ? (user.displayName || user.username) : 'Thành viên';
+			}
+
+			// Feed the sender name along with the message to give Gemini clear context
+			const triggerSender = trigger.message.author.displayName || trigger.message.author.username;
+			let prompt = `${triggerSender}: ${trigger.message.content}`;
+
+			// Add system note about the least active bot to encourage natural mentions (Priority 3)
+			if (leastActiveBotId) {
+				prompt += `\n\n[Gợi ý hệ thống: Đồng chí ${leastActiveBotName} (<@${leastActiveBotId}>) dạo này ít phát biểu nhất trong lịch sử chat (${minCount} tin nhắn). Nếu phù hợp, hãy mention/tag và nhắc khéo họ tham gia hội thoại.]`;
+			}
 
 			const geminiPromise = geminiService.generateResponseWithHistory(
-				trigger.message.content,
+				prompt,
 				this.agent.config.autoChatCharacter || '',
 				history,
 			);
 
 			const typingDuration = ranInt(5000, 15000);
 			const typingPromise = this.simulateBurstTyping(
-				trigger.message.channel as TextChannel,
+				channel,
 				typingDuration,
 			);
 
@@ -759,6 +854,8 @@ return { 1, "claimed" }
 				}),
 			]);
 
+			this.lastResponseTime = Date.now();
+			this.lastChannelMessageTime = Date.now();
 			logger.info(
 				`[Initiator] ${myName} started new topic in ${this.autoChatChannel.name}`,
 			);
@@ -782,21 +879,67 @@ return { 1, "claimed" }
 
 		this.isProcessing = true;
 		const channelId = this.autoChatChannel.id;
+		const myBotId = this.agent.user?.id;
+		const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
 
 		try {
-			// Get history to provide context
-			const historyEntries = await this.channelHistory.getHistory(channelId);
-			const history = historyEntries.slice(-10).map((e) => ({
-				role: 'user' as const,
-				content: `${e.sender}: ${e.content}`,
-			}));
+			// Fetch authoritative recent messages from Discord channel, filtering to only keep messages from the 5 bots
+			const discordMessages = await this.autoChatChannel.messages.fetch({ limit: 50 });
+			const sortedMessages = [...discordMessages.values()]
+				.reverse()
+				.filter((m) => botIDs.has(m.author.id) || m.author.id === myBotId)
+				.slice(-10);
+
+			const history = sortedMessages.map((m) => {
+				const sender = m.author.displayName || m.author.username;
+				return {
+					role: 'user' as const,
+					content: `${sender}: ${m.content}`,
+				};
+			});
+
+			// Calculate message counts for each bot in the 5 bots list to find the least active one
+			const counts: Record<string, number> = {};
+			for (const id of botIDs) {
+				counts[id] = 0;
+			}
+			if (myBotId) {
+				counts[myBotId] = 0;
+			}
+
+			for (const m of sortedMessages) {
+				if (counts[m.author.id] !== undefined) {
+					counts[m.author.id]++;
+				}
+			}
+
+			let leastActiveBotId: string | null = null;
+			let minCount = Infinity;
+
+			for (const id of Object.keys(counts)) {
+				if (id === myBotId) continue; // Exclude ourselves
+				if (counts[id] < minCount) {
+					minCount = counts[id];
+					leastActiveBotId = id;
+				}
+			}
+
+			let leastActiveBotName = 'Thành viên';
+			if (leastActiveBotId) {
+				const user = this.agent.users.cache.get(leastActiveBotId);
+				leastActiveBotName = user ? (user.displayName || user.username) : 'Thành viên';
+			}
 
 			const myName = this.agent.user?.displayName ?? 'Unknown';
-			const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
 
-			const prompt = history.length > 0
+			let prompt = history.length > 0
 				? `Dựa trên lịch sử chat trên, hãy đưa ra một câu chat ngắn gọn, tự nhiên để tiếp tục câu chuyện hoặc chia sẻ một ý nghĩ ngẫu nhiên. Đừng tag ai trừ khi cần thiết.`
 				: `Hãy bắt đầu một câu chuyện ngắn gọn, tự nhiên về cuộc sống hàng ngày hoặc cảm xúc hiện tại của bạn.`;
+
+			// Add system note about the least active bot to encourage natural mentions (Priority 3)
+			if (leastActiveBotId && history.length > 0) {
+				prompt += `\n\n[Gợi ý hệ thống: Đồng chí ${leastActiveBotName} (<@${leastActiveBotId}>) dạo này ít phát biểu nhất trong lịch sử chat (${minCount} tin nhắn). Nếu phù hợp, hãy mention/tag và nhắc khéo họ tham gia hội thoại.]`;
+			}
 
 			const systemInstruction = this.agent.config.autoChatCharacter || '';
 
@@ -832,6 +975,8 @@ return { 1, "claimed" }
 			});
 
 			this.lastChatTime = Date.now();
+			this.lastResponseTime = Date.now();
+			this.lastChannelMessageTime = Date.now();
 			logger.info(`[AutoChat] ${myName} đã gửi tin nhắn ngẫu nhiên tới ${this.autoChatChannel.name}`);
 		} catch (error) {
 			logger.error(
