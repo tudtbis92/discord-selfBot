@@ -546,9 +546,9 @@ return { 1, "claimed" }
 		validMentions: string[],
 	): Promise<void> {
 		const channel = this.autoChatChannel;
-		if (!channel) return;
+		if (!channel || !text.trim()) return;
 
-		// Write response to channel history BEFORE sending (aligned with Plan 02 timing)
+		// Write response to channel history BEFORE sending
 		const myName = this.agent.user?.displayName ?? 'Unknown';
 		await this.channelHistory.addMessage(channel.id, {
 			sender: myName,
@@ -556,71 +556,21 @@ return { 1, "claimed" }
 			timestamp: Date.now(),
 		});
 
-		const chunks = text.length > 100 ? this.splitLongResponse(text) : [text];
-
-		for (let i = 0; i < chunks.length; i++) {
-			const chunk = chunks[i];
-			if (!chunk) continue;
-
-			if (i === 0) {
-				if (validMentions.length === 0) {
-					await trigger.reply({
-						content: chunk,
-						allowedMentions: { repliedUser: false },
-					});
-				} else {
-					await channel.send({
-						content: chunk,
-						allowedMentions: { users: validMentions },
-					});
-				}
-			} else {
-				await channel.send({
-					content: chunk,
-					allowedMentions: { users: validMentions },
-				});
-			}
-
-			if (i < chunks.length - 1) {
-				await new Promise((resolve) => setTimeout(resolve, ranInt(2000, 5000)));
-			}
+		if (validMentions.length === 0) {
+			await trigger.reply({
+				content: text,
+				allowedMentions: { repliedUser: false },
+			});
+		} else {
+			await channel.send({
+				content: text,
+				allowedMentions: { users: validMentions },
+			});
 		}
 
 		// Update response timestamp to prevent immediate re-trigger
 		this.lastResponseTime = Date.now();
 		this.lastChannelMessageTime = Date.now();
-	}
-
-	private splitLongResponse(text: string): string[] {
-		const lines = text
-			.split(/\n+/)
-			.map((l) => l.trim())
-			.filter((l) => l);
-		const chunks: string[] = [];
-
-		for (const line of lines) {
-			if (line.length <= 100) {
-				chunks.push(line);
-			} else {
-				const sentences = line.split(/([.!?]+\s*)/).filter((s) => s.trim());
-				let current = '';
-				for (let i = 0; i < sentences.length; i += 2) {
-					const sentence = (sentences[i] || '') + (sentences[i + 1] || '');
-					if (
-						(current + sentence).length > 100 ||
-						(current.split(/[.!?]/).length > 2 && current.trim())
-					) {
-						if (current.trim()) chunks.push(current.trim());
-						current = sentence;
-					} else {
-						current += sentence;
-					}
-				}
-				if (current.trim()) chunks.push(current.trim());
-			}
-		}
-
-		return chunks.length > 0 ? chunks : [text];
 	}
 
 	private async processQueue(): Promise<void> {
@@ -714,10 +664,11 @@ return { 1, "claimed" }
 
 			// Feed the sender name along with the message to give Gemini clear context
 			const triggerSender = trigger.message.author.displayName || trigger.message.author.username;
-			let prompt = `${triggerSender}: ${trigger.message.content}`;
+			let prompt = `${triggerSender}: ${trigger.message.content}\n\n(Lưu ý: Phản hồi ngắn gọn, tự nhiên, tối đa 1-2 câu trong 1 đoạn duy nhất, tránh giải thích dài dòng hoặc chia nhiều đoạn.)`;
 
 			// Add system note about the least active bot to encourage natural mentions (Priority 3)
-			if (leastActiveBotId) {
+			// Only apply with 30% probability and if the bot is genuinely quiet (less than 2 messages in recent history)
+			if (leastActiveBotId && minCount < 2 && Math.random() < 0.30) {
 				prompt += `\n\n[Gợi ý hệ thống: Đồng chí ${leastActiveBotName} (<@${leastActiveBotId}>) dạo này ít phát biểu nhất trong lịch sử chat (${minCount} tin nhắn). Nếu phù hợp, hãy mention/tag và nhắc khéo họ tham gia hội thoại.]`;
 			}
 
@@ -946,11 +897,12 @@ return { 1, "claimed" }
 			const myName = this.agent.user?.displayName ?? 'Unknown';
 
 			let prompt = history.length > 0
-				? `Dựa trên lịch sử chat trên, hãy đưa ra một câu chat ngắn gọn, tự nhiên để tiếp tục câu chuyện hoặc chia sẻ một ý nghĩ ngẫu nhiên. Đừng tag ai trừ khi cần thiết.`
-				: `Hãy bắt đầu một câu chuyện ngắn gọn, tự nhiên về cuộc sống hàng ngày hoặc cảm xúc hiện tại của bạn.`;
+				? `Dựa trên lịch sử chat trên, hãy đưa ra một câu chat ngắn gọn, tự nhiên để tiếp tục câu chuyện hoặc chia sẻ một ý nghĩ ngẫu nhiên (tối đa 1-2 câu trong 1 đoạn duy nhất, tránh giải thích dài dòng hoặc chia nhiều đoạn). Đừng tag ai trừ khi cần thiết.`
+				: `Hãy bắt đầu một câu chuyện ngắn gọn, tự nhiên về cuộc sống hàng ngày hoặc cảm xúc hiện tại của bạn (tối đa 1-2 câu trong 1 đoạn duy nhất, tránh giải thích dài dòng hoặc chia nhiều đoạn).`;
 
 			// Add system note about the least active bot to encourage natural mentions (Priority 3)
-			if (leastActiveBotId && history.length > 0) {
+			// Only apply with 30% probability and if the bot is genuinely quiet (less than 2 messages in recent history)
+			if (leastActiveBotId && minCount < 2 && history.length > 0 && Math.random() < 0.30) {
 				prompt += `\n\n[Gợi ý hệ thống: Đồng chí ${leastActiveBotName} (<@${leastActiveBotId}>) dạo này ít phát biểu nhất trong lịch sử chat (${minCount} tin nhắn). Nếu phù hợp, hãy mention/tag và nhắc khéo họ tham gia hội thoại.]`;
 			}
 
