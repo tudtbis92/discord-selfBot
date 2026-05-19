@@ -45,6 +45,14 @@ export class BaseAgent extends Client {
 		logger.info(`Logged in as ${this.user?.displayName ?? 'Unknown user'}`);
 
 
+		// Xóa toàn bộ presence/activity cũ khi khởi động bot
+		try {
+			this.user?.setPresence({ activities: [], status: 'online' });
+			logger.info('[Presence] Đã xóa toàn bộ presence cũ trên tài khoản');
+		} catch (error) {
+			logger.error(`[Presence] Lỗi khi xóa presence: ${String(error)}`);
+		}
+
 		if (this.config.prefix) {
 			this.commands = await loadCommands();
 		}
