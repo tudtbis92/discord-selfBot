@@ -180,11 +180,24 @@ return { 1, "claimed" }
 	}
 
 	private setupAutoChat() {
-		if (this.agent.config.autoChat && this.agent.config.autoChatChannelID) {
+		if (this.agent.config.autoChat) {
+			const channelId = this.agent.config.autoChatChannelID || this.agent.config.channelID?.[0];
+
+			if (!channelId) {
+				logger.error(
+					'[AutoChat] Auto Chat được bật nhưng không tìm thấy autoChatChannelID hoặc channelID[0] trong cấu hình.',
+				);
+				return;
+			}
+
+			if (!this.agent.config.autoChatChannelID) {
+				logger.warn(
+					`[AutoChat] autoChatChannelID không được cấu hình. Tự động sử dụng kênh chính (channelID[0]): ${channelId}`,
+				);
+			}
+
 			try {
-				this.autoChatChannel = this.agent.channels.cache.get(
-					this.agent.config.autoChatChannelID,
-				) as TextChannel | undefined;
+				this.autoChatChannel = this.agent.channels.cache.get(channelId) as TextChannel | undefined;
 
 				if (this.autoChatChannel) {
 					logger.info(
@@ -194,7 +207,7 @@ return { 1, "claimed" }
 					this.startInitiatorCheck();
 				} else {
 					logger.warn(
-						`[AutoChat] Không tìm thấy kênh chat với ID: ${this.agent.config.autoChatChannelID}`,
+						`[AutoChat] Không tìm thấy kênh chat với ID: ${channelId}`,
 					);
 				}
 			} catch (error) {
