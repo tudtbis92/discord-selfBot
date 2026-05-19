@@ -1,0 +1,33 @@
+{
+    "username": "YourBotUsername",
+    "token": "YOUR_DISCORD_TOKEN",
+    "guildID": "YOUR_GUILD_ID",
+    "channelID": [
+        "CHANNEL_ID_1",
+        "CHANNEL_ID_2"
+    ],
+    "adminID": "YOUR_ADMIN_ID",
+    "prefix": "!",
+    "showRPC": true,
+    
+    "autoChat": false,
+    "autoChatChannelID": "AUTO_CHAT_CHANNEL_ID",
+    "autoChatInterval": 4,
+    
+    "autoChatCharacter": "huong.txt",
+    "autoChatCharacterName": "Hương Nguyễn",
+    "autoChatBotIDs": [
+        "BOT_ID_1",
+        "BOT_ID_2"
+    ],
+    
+    "avatarUpdateChannelID": "AVATAR_UPDATE_CHANNEL_ID",
+    
+    "geminiApiKey": "YOUR_GEMINI_API_KEY",
+    "geminiApiKeys": [
+        "YOUR_GEMINI_API_KEY_1",
+        "YOUR_GEMINI_API_KEY_2"
+    ],
+    
+    "redisUri": "redis://localhost:6379"
+}

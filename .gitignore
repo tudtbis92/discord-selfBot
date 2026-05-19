@@ -18,3 +18,4 @@ dest/
 *.json
 !package.json
 !tsconfig.json
+!config.example.json
