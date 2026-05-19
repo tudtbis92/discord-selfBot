@@ -52,6 +52,10 @@ export class RedisCacheManager {
 		return this.isConnected && this.redis !== null;
 	}
 
+	public rawRedis(): Redis | null {
+		return this.redis;
+	}
+
 	public async get<T>(key: string): Promise<T | null> {
 		if (!this.connected || !this.redis) {
 			return null;

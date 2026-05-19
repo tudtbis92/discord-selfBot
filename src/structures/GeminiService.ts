@@ -264,6 +264,7 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
  */
 class GeminiService {
 	private ai: GoogleGenAI;
+	private model: string = 'gemini-2.5-flash-lite';
 	private keyManager: ApiKeyManager;
 	private defaultConfig = {
 		safetySettings: [
@@ -302,6 +303,10 @@ class GeminiService {
 		logger.info(`[GeminiService] Đã cập nhật danh sách gồm ${String(keys.length)} API keys`);
 	}
 
+	public setModel(modelName: string): void {
+		this.model = modelName;
+	}
+
 	private recreateAi(key: string): void {
 		this.ai = new GoogleGenAI({ apiKey: key });
 	}
@@ -329,7 +334,7 @@ class GeminiService {
 				];
 
 				const response = await this.ai.models.generateContent({
-					model: 'gemini-2.5-flash',
+					model: this.model,
 					config: this.defaultConfig,
 					contents,
 				});
@@ -370,7 +375,7 @@ class GeminiService {
 				});
 
 				const response = await this.ai.models.generateContent({
-					model: 'gemini-2.5-flash',
+					model: this.model,
 					config: {
 						...this.defaultConfig,
 						systemInstruction,
@@ -409,7 +414,7 @@ class GeminiService {
 				];
 
 				const response = await this.ai.models.generateContent({
-					model: 'gemini-2.5-flash',
+					model: this.model,
 					config: {
 						...this.defaultConfig,
 						systemInstruction,
@@ -584,7 +589,7 @@ class GeminiService {
 			const response = await withRetryAndRotation(
 				() =>
 					this.ai.models.generateContent({
-						model: 'gemini-2.5-flash',
+						model: this.model,
 						config: this.defaultConfig,
 						contents: activeHistory,
 					}),
@@ -631,7 +636,7 @@ class GeminiService {
 			const response = await withRetryAndRotation(
 				() =>
 					this.ai.models.generateContentStream({
-						model: 'gemini-2.5-flash',
+						model: this.model,
 						config: this.defaultConfig,
 						contents,
 					}),
@@ -722,7 +727,7 @@ class GeminiService {
 				];
 
 				const response = await this.ai.models.generateContent({
-					model: config.model || 'gemini-2.5-flash',
+					model: config.model || this.model,
 					config: customConfig,
 					contents,
 				});
