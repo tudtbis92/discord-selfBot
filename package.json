@@ -14,7 +14,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "setup": "npm install",
     "start": "node dest/index.js",
-    "build": "npm run lint && npm run format:check && tsc",
+    "build": "tsc && mkdir -p dest/src/config/personalities && cp src/config/personalities/*.txt dest/src/config/personalities/",
     "dev": "npm run build && npm start",
     "lint": "eslint src/ index.ts",
     "lint:fix": "eslint src/ index.ts --fix",

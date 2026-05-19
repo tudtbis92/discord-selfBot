@@ -596,8 +596,69 @@ return { 1, "claimed" }
 		}
 	}
 
-	private sendRandomChat(): Promise<void> {
-		return Promise.resolve();
+	private async sendRandomChat(): Promise<void> {
+		if (!this.autoChatChannel || this.isProcessing) return;
+
+		this.isProcessing = true;
+		const channelId = this.autoChatChannel.id;
+
+		try {
+			// Get history to provide context
+			const historyEntries = await this.channelHistory.getHistory(channelId);
+			const history = historyEntries.slice(-10).map((e) => ({
+				role: 'user' as const,
+				content: `${e.sender}: ${e.content}`,
+			}));
+
+			const myName = this.agent.user?.displayName ?? 'Unknown';
+			const botIDs = new Set<string>(this.agent.config.autoChatBotIDs ?? []);
+
+			const prompt = history.length > 0
+				? `Dựa trên lịch sử chat trên, hãy đưa ra một câu chat ngắn gọn, tự nhiên để tiếp tục câu chuyện hoặc chia sẻ một ý nghĩ ngẫu nhiên. Đừng tag ai trừ khi cần thiết.`
+				: `Hãy bắt đầu một câu chuyện ngắn gọn, tự nhiên về cuộc sống hàng ngày hoặc cảm xúc hiện tại của bạn.`;
+
+			const systemInstruction = this.agent.config.autoChatCharacter || '';
+
+			const response = await geminiService.generateResponseWithHistory(
+				prompt,
+				systemInstruction,
+				history,
+			);
+
+			// Clean and validate
+			const { cleanedText, mentionIDs } = this.parseAndValidateMentions(response, botIDs);
+
+			if (!cleanedText) {
+				this.isProcessing = false;
+				return;
+			}
+
+			// Save to history
+			await this.channelHistory.addMessage(channelId, {
+				sender: myName,
+				content: cleanedText,
+				timestamp: Date.now(),
+			});
+
+			// Typing simulation
+			const typingDuration = ranInt(3000, 7000);
+			await this.simulateBurstTyping(this.autoChatChannel, typingDuration);
+
+			// Send
+			await this.autoChatChannel.send({
+				content: cleanedText,
+				allowedMentions: { users: mentionIDs },
+			});
+
+			this.lastChatTime = Date.now();
+			logger.info(`[AutoChat] ${myName} đã gửi tin nhắn ngẫu nhiên tới ${this.autoChatChannel.name}`);
+		} catch (error) {
+			logger.error(
+				`[AutoChat] Lỗi khi gửi tin nhắn ngẫu nhiên: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		} finally {
+			this.isProcessing = false;
+		}
 	}
 
 	public async checkAndSendRandomChat() {

@@ -29,8 +29,6 @@ class ApiKeyManager {
 	}
 
 	public rotateToNext(): string | null {
-		if (this.allExhausted) return null;
-
 		const start = this._currentIndex;
 		do {
 			this._currentIndex = (this._currentIndex + 1) % this.keys.length;
@@ -64,6 +62,33 @@ class ApiKeyManager {
 	}
 }
 
+class ModelManager {
+	private models: string[];
+	private _currentIndex = 0;
+
+	constructor(models: string[]) {
+		this.models = models.length > 0 ? models : ['gemini-3.1-flash-lite', 'gemma-4-26b', 'gemma-4-31b'];
+	}
+
+	public getCurrentModel(): string {
+		return this.models[this._currentIndex];
+	}
+
+	public rotateToNext(): string | null {
+		if (this.models.length <= 1) return null;
+		this._currentIndex = (this._currentIndex + 1) % this.models.length;
+		return this.getCurrentModel();
+	}
+
+	public get modelCount(): number {
+		return this.models.length;
+	}
+
+	public get currentIndex(): number {
+		return this._currentIndex;
+	}
+}
+
 function isRateLimitError(error: unknown): boolean {
 	if (!error) return false;
 	const err = error as { message?: string; status?: number; response?: { status?: number } };
@@ -81,26 +106,29 @@ function isRateLimitError(error: unknown): boolean {
 const BACKOFF_DELAYS = [5000, 15000, 45000, 135000, 300000];
 
 async function withRetryAndRotation<T>(
-	fn: () => Promise<T>,
+	fn: (model: string) => Promise<T>,
 	keyManager: ApiKeyManager,
+	modelManager: ModelManager,
 	recreateAi: (key: string) => void,
 ): Promise<T> {
 	let backoffCycle = 0;
 
 	for (;;) {
 		const currentKey = keyManager.getCurrentKey();
+		const currentModel = modelManager.getCurrentModel();
 		try {
-			return await fn();
+			return await fn(currentModel);
 		} catch (error) {
 			if (!isRateLimitError(error)) {
 				throw error;
 			}
 
 			logger.warn(
-				`[GeminiService] API Key #${String(keyManager.currentIndex + 1)} failed (rate limit).`,
+				`[GeminiService] API Key #${String(keyManager.currentIndex + 1)} failed on model ${currentModel} (rate limit).`,
 			);
 			keyManager.markFailed(currentKey);
 
+			// Try next API Key
 			if (!keyManager.allExhausted) {
 				const nextKey = keyManager.rotateToNext();
 				if (nextKey) {
@@ -112,20 +140,33 @@ async function withRetryAndRotation<T>(
 				}
 			}
 
+			// If all keys exhausted for current model, try next Model
+			const nextModel = modelManager.rotateToNext();
+			if (nextModel) {
+				logger.warn(
+					`[GeminiService] All keys rate-limited for ${currentModel}. Switching to model ${nextModel}...`,
+				);
+				keyManager.resetFailed();
+				recreateAi(keyManager.getCurrentKey());
+				continue;
+			}
+
+			// All keys and all models exhausted, start backoff
 			if (backoffCycle >= 5) {
 				logger.error(
-					'[GeminiService] All API keys exhausted and max backoff cycles reached.',
+					'[GeminiService] All API keys and models exhausted and max backoff cycles reached.',
 				);
 				throw error;
 			}
 
 			const delay = BACKOFF_DELAYS[backoffCycle];
 			logger.warn(
-				`[GeminiService] All API keys rate-limited. Waiting ${String(delay / 1000)}s before retrying (cycle ${String(backoffCycle + 1)}/5)...`,
+				`[GeminiService] All API keys and models rate-limited. Waiting ${String(delay / 1000)}s before retrying (cycle ${String(backoffCycle + 1)}/5)...`,
 			);
 			await new Promise((resolve) => setTimeout(resolve, delay));
 
 			keyManager.resetFailed();
+			// No need to reset model index, we can just keep trying from where we left off
 			recreateAi(keyManager.getCurrentKey());
 			backoffCycle++;
 		}
@@ -264,7 +305,7 @@ Hôm nay thời tiết đẹp quá, mình vừa đi uống cà phê với bạn 
  */
 class GeminiService {
 	private ai: GoogleGenAI;
-	private model: string = 'gemini-2.5-flash-lite';
+	private modelManager: ModelManager;
 	private keyManager: ApiKeyManager;
 	private defaultConfig = {
 		safetySettings: [
@@ -290,8 +331,9 @@ class GeminiService {
 	public systemInstruction: string = '';
 	private characterName: string = '';
 
-	constructor(apiKeys?: string[]) {
+	constructor(apiKeys?: string[], models?: string[]) {
 		this.keyManager = new ApiKeyManager(apiKeys || []);
+		this.modelManager = new ModelManager(models || []);
 		this.ai = new GoogleGenAI({
 			apiKey: this.keyManager.getCurrentKey(),
 		});
@@ -303,8 +345,9 @@ class GeminiService {
 		logger.info(`[GeminiService] Đã cập nhật danh sách gồm ${String(keys.length)} API keys`);
 	}
 
-	public setModel(modelName: string): void {
-		this.model = modelName;
+	public setModels(modelNames: string[]): void {
+		this.modelManager = new ModelManager(modelNames);
+		logger.info(`[GeminiService] Đã cập nhật danh sách gồm ${String(modelNames.length)} models`);
 	}
 
 	private recreateAi(key: string): void {
@@ -325,7 +368,7 @@ class GeminiService {
 	 */
 	async generateResponse(prompt: string): Promise<string> {
 		return withRetryAndRotation(
-			async () => {
+			async (model) => {
 				const contents = [
 					{
 						role: 'user' as const,
@@ -334,7 +377,7 @@ class GeminiService {
 				];
 
 				const response = await this.ai.models.generateContent({
-					model: this.model,
+					model: model,
 					config: this.defaultConfig,
 					contents,
 				});
@@ -343,6 +386,7 @@ class GeminiService {
 				return this.cleanResponse(rawResponse);
 			},
 			this.keyManager,
+			this.modelManager,
 			this.recreateAi.bind(this),
 		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
@@ -367,7 +411,7 @@ class GeminiService {
 			: systemInstruction;
 
 		return withRetryAndRotation(
-			async () => {
+			async (model) => {
 				const contents = history.map((msg) => ({
 					role: msg.role === 'user' ? ('user' as const) : ('model' as const),
 					parts: [{ text: msg.content }],
@@ -379,7 +423,7 @@ class GeminiService {
 				});
 
 				const response = await this.ai.models.generateContent({
-					model: this.model,
+					model: model,
 					config: {
 						...this.defaultConfig,
 						systemInstruction: finalInstruction,
@@ -391,6 +435,7 @@ class GeminiService {
 				return this.cleanResponse(rawResponse);
 			},
 			this.keyManager,
+			this.modelManager,
 			this.recreateAi.bind(this),
 		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
@@ -413,7 +458,7 @@ class GeminiService {
 			: systemInstruction;
 
 		return withRetryAndRotation(
-			async () => {
+			async (model) => {
 				const contents = [
 					{
 						role: 'user' as const,
@@ -422,7 +467,7 @@ class GeminiService {
 				];
 
 				const response = await this.ai.models.generateContent({
-					model: this.model,
+					model: model,
 					config: {
 						...this.defaultConfig,
 						systemInstruction: finalInstruction,
@@ -434,6 +479,7 @@ class GeminiService {
 				return this.cleanResponse(rawResponse);
 			},
 			this.keyManager,
+			this.modelManager,
 			this.recreateAi.bind(this),
 		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);
@@ -595,13 +641,14 @@ class GeminiService {
 			});
 
 			const response = await withRetryAndRotation(
-				() =>
+				(model) =>
 					this.ai.models.generateContent({
-						model: this.model,
+						model: model,
 						config: this.defaultConfig,
 						contents: activeHistory,
 					}),
 				this.keyManager,
+				this.modelManager,
 				this.recreateAi.bind(this),
 			);
 
@@ -642,13 +689,14 @@ class GeminiService {
 			];
 
 			const response = await withRetryAndRotation(
-				() =>
+				(model) =>
 					this.ai.models.generateContentStream({
-						model: this.model,
+						model: model,
 						config: this.defaultConfig,
 						contents,
 					}),
 				this.keyManager,
+				this.modelManager,
 				this.recreateAi.bind(this),
 			);
 
@@ -722,7 +770,7 @@ class GeminiService {
 		},
 	): Promise<string> {
 		return withRetryAndRotation(
-			async () => {
+			async (model) => {
 				const customConfig = {
 					...this.defaultConfig,
 				};
@@ -735,7 +783,7 @@ class GeminiService {
 				];
 
 				const response = await this.ai.models.generateContent({
-					model: config.model || this.model,
+					model: config.model || model,
 					config: customConfig,
 					contents,
 				});
@@ -743,6 +791,7 @@ class GeminiService {
 				return response.text || '';
 			},
 			this.keyManager,
+			this.modelManager,
 			this.recreateAi.bind(this),
 		).catch((error: unknown) => {
 			const errorMsg = parseGeminiError(error);

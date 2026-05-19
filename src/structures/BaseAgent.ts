@@ -102,7 +102,11 @@ export class BaseAgent extends Client {
 		}
 
 		logger.info(`Loaded ${String(this.commands.size)} commands`);
-		logger.info(`Running on channel: ${this.activeChannel.name}`);
+		if (this.activeChannel) {
+			logger.info(`Running on channel: ${this.activeChannel.name}`);
+		} else {
+			logger.warn(`Channel with ID ${this.config.channelID[0]} not found or bot lacks access.`);
+		}
 
 		void this.main();
 	};
@@ -184,6 +188,12 @@ export class BaseAgent extends Client {
 	public setConfig = async (config: Configuration): Promise<void> => {
 		this.config = config;
 		this.cache = structuredClone(config);
+
+		// Cập nhật API keys cho GeminiService từ config
+		const apiKeys = config.geminiApiKeys || (config.geminiApiKey ? [config.geminiApiKey] : []);
+		if (apiKeys.length > 0) {
+			geminiService.setApiKeys(apiKeys);
+		}
 	};
 
 	/**
