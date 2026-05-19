@@ -67,7 +67,10 @@ class ModelManager {
 	private _currentIndex = 0;
 
 	constructor(models: string[]) {
-		this.models = models.length > 0 ? models : ['gemini-3.1-flash-lite', 'gemma-4-26b', 'gemma-4-31b'];
+		this.models =
+			models.length > 0
+				? models
+				: ['gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
 	}
 
 	public getCurrentModel(): string {
@@ -347,7 +350,9 @@ class GeminiService {
 
 	public setModels(modelNames: string[]): void {
 		this.modelManager = new ModelManager(modelNames);
-		logger.info(`[GeminiService] Đã cập nhật danh sách gồm ${String(modelNames.length)} models`);
+		logger.info(
+			`[GeminiService] Đã cập nhật danh sách gồm ${String(modelNames.length)} models`,
+		);
 	}
 
 	private recreateAi(key: string): void {
@@ -406,9 +411,10 @@ class GeminiService {
 		systemInstruction: string,
 		history: Array<{ role: 'user' | 'assistant'; content: string }>,
 	): Promise<string> {
-		const finalInstruction = (systemInstruction.endsWith('.txt') || !systemInstruction)
-			? this.systemInstruction
-			: systemInstruction;
+		const finalInstruction =
+			systemInstruction.endsWith('.txt') || !systemInstruction
+				? this.systemInstruction
+				: systemInstruction;
 
 		return withRetryAndRotation(
 			async (model) => {
@@ -453,9 +459,10 @@ class GeminiService {
 		prompt: string,
 		systemInstruction: string,
 	): Promise<string> {
-		const finalInstruction = (systemInstruction.endsWith('.txt') || !systemInstruction)
-			? this.systemInstruction
-			: systemInstruction;
+		const finalInstruction =
+			systemInstruction.endsWith('.txt') || !systemInstruction
+				? this.systemInstruction
+				: systemInstruction;
 
 		return withRetryAndRotation(
 			async (model) => {
