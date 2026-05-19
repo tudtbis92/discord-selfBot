@@ -94,7 +94,6 @@ Mở file config của bạn (ví dụ: `darkphoenix1992.json`) và thêm:
     "channelID": ["1234567890123456789"],
     "adminID": "1234567890123456789",
     "prefix": "!",
-    "showRPC": true,
     
     "autoChat": true,
     "autoChatChannelID": "1234567890123456789",

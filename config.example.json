@@ -8,7 +8,6 @@
     ],
     "adminID": "YOUR_ADMIN_ID",
     "prefix": "!",
-    "showRPC": true,
     
     "autoChat": false,
     "autoChatChannelID": "AUTO_CHAT_CHANNEL_ID",

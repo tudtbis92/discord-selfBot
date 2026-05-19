@@ -56,18 +56,6 @@ export class InquirerConfig {
 		return parseInt(interval);
 	}
 
-	private static async getShowRPC(): Promise<boolean> {
-		const response = await select({
-			message: 'Show Rich Presence?',
-			choices: [
-				{ name: 'Yes', value: true },
-				{ name: 'No', value: false },
-			],
-			default: true,
-		});
-		return response;
-	}
-
 	private static async getAutoChatCharacter(): Promise<string> {
 		return input({
 			message: 'Personality file name (e.g., huong.txt):',
@@ -131,7 +119,6 @@ export class InquirerConfig {
 		const autoChatCharacterName = autoChat ? await this.getAutoChatCharacterName() : undefined;
 		const autoChatBotIDs = autoChat ? await this.getAutoChatBotIDs() : undefined;
 		const autoChatChannelID = autoChat ? await this.getAutoChatChannelID() : undefined;
-		const showRPC = await this.getShowRPC();
 
 		return {
 			username: agent.user?.username || '',
@@ -141,7 +128,6 @@ export class InquirerConfig {
 			prefix,
 			autoChat,
 			autoChatInterval,
-			showRPC,
 			autoChatCharacter,
 			autoChatCharacterName,
 			autoChatBotIDs,

@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { ranInt } from '../utils/utils.js';
 import { AgentOptions, Commands, Configuration } from '../typings/typings.js';
 import { logger } from '../utils/logger.js';
-import { loadPresence, startAutoPresenceUpdate } from '../feats/presence.js';
 import { loadCommands } from '../feats/command.js';
 import { commandHandler } from '../handler/commandHandler.js';
 import { mentionHandler } from '../handler/mentionHandler.js';
@@ -45,10 +44,7 @@ export class BaseAgent extends Client {
 	private onReady = async (): Promise<void> => {
 		logger.info(`Logged in as ${this.user?.displayName ?? 'Unknown user'}`);
 
-		if (this.config.showRPC) {
-			void loadPresence(this);
-			startAutoPresenceUpdate(this); // Bắt đầu auto update presence
-		}
+
 		if (this.config.prefix) {
 			this.commands = await loadCommands();
 		}

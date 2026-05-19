@@ -17,7 +17,6 @@ export const defaultConfig: Configuration = {
 	guildID: '',
 	channelID: [''],
 	prefix: '!',
-	showRPC: true,
 
 	// Auto Chat mặc định
 	autoChat: false,
@@ -36,7 +35,6 @@ export interface Configuration {
 	channelID: string[];
 	adminID?: string;
 	prefix?: string;
-	showRPC: boolean;
 
 	// Auto Chat với Gemini AI
 	autoChatChannelID?: string;
