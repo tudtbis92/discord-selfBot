@@ -13,11 +13,7 @@ export const autochat: Commands = {
 			// Xác định trạng thái chat tiếp theo
 			let nextChatStatus = 'Sẵn sàng';
 			if (stats?.timeUntilNextChat && stats.timeUntilNextChat > 0) {
-				if (stats.isBotMessageDelay) {
-					nextChatStatus = `⏳ Delay ${Math.ceil(stats.timeUntilNextChat / 60000)} phút (tin nhắn cuối là của bot)`;
-				} else {
-					nextChatStatus = `${Math.ceil(stats.timeUntilNextChat / 60000)} phút nữa`;
-				}
+				nextChatStatus = `${Math.ceil(stats.timeUntilNextChat / 60000)} phút nữa`;
 			}
 
 			const embed = new MessageEmbed()
@@ -34,7 +30,8 @@ export const autochat: Commands = {
 					true,
 				)
 				.addField('Chat tiếp theo', nextChatStatus, true)
-				.addField('Đang xử lý mention', stats?.isProcessingMention ? '✅' : '❌', true)
+				.addField('Đang xử lý', stats?.isProcessing ? '✅' : '❌', true)
+				.addField('Hàng chờ', `${stats?.queueLength ?? 0}/3`, true)
 				.addField(
 					'Sử dụng',
 					`\`${agent.config.prefix}autochat on <channelId>\` - Bật auto chat\n` +
