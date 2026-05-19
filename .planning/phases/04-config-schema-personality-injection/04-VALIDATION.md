@@ -1,8 +1,17 @@
+---
+phase: 4
+slug: config-schema-personality-injection
+status: passed
+nyquist_compliant: false
+wave_0_complete: true
+created: 2026-05-18
+---
+
 # Phase 4: Config Schema & Personality Injection - Validation Strategy
 
 **Phase:** 04
 **Date:** 2026-05-18
-**Status:** Ready for planning
+**Status:** passed
 
 ## Test Framework
 
@@ -18,22 +27,22 @@
 
 | Test | Type | Command/Assertion | Status |
 |------|------|-------------------|--------|
-| Configuration interface includes `autoChatCharacter?: string` | Source assertion | `src/typings/typings.ts` contains `autoChatCharacter?: string` | Pending |
-| Configuration interface includes `autoChatCharacterName?: string` | Source assertion | `src/typings/typings.ts` contains `autoChatCharacterName?: string` | Pending |
-| Configuration interface includes `autoChatBotIDs?: string[]` | Source assertion | `src/typings/typings.ts` contains `autoChatBotIDs?: string[]` | Pending |
-| TypeScript compiles without errors | CLI | `npm run build` exits 0 | Pending |
-| Personality directory exists | File assertion | `src/config/personalities/` directory exists | Pending |
-| Example personality file exists | File assertion | `src/config/personalities/huong.txt` exists and is non-empty | Pending |
+| Configuration interface includes `autoChatCharacter?: string` | Source assertion | `src/typings/typings.ts` contains `autoChatCharacter?: string` | Passed |
+| Configuration interface includes `autoChatCharacterName?: string` | Source assertion | `src/typings/typings.ts` contains `autoChatCharacterName?: string` | Passed |
+| Configuration interface includes `autoChatBotIDs?: string[]` | Source assertion | `src/typings/typings.ts` contains `autoChatBotIDs?: string[]` | Passed |
+| TypeScript compiles without errors | CLI | `npm run build` exits 0 | Passed |
+| Personality directory exists | File assertion | `src/config/personalities/` directory exists | Passed |
+| Example personality file exists | File assertion | `src/config/personalities/huong.txt` exists and is non-empty | Passed |
 
 ### AUTOCHAT-02: Personality Injection
 
 | Test | Type | Command/Assertion | Status |
 |------|------|-------------------|--------|
-| GeminiService has `setSystemInstruction()` method | Source assertion | `src/structures/GeminiService.ts` contains `setSystemInstruction(` | Pending |
-| `cleanResponse()` uses dynamic regex from character name | Source assertion | `src/structures/GeminiService.ts` contains regex construction with character name | Pending |
-| BaseAgent loads personality file at startup | Source assertion | `src/structures/BaseAgent.ts` contains `fs.readFileSync` or equivalent in `onReady` | Pending |
-| Missing personality file disables autoChat gracefully | Behavior | Bot logs error and sets `autoChat = false` when personality file missing | Pending |
-| Hardcoded `HUONG_PERSONALITY_INSTRUCTION` is removed or unused | Source assertion | `HUONG_PERSONALITY_INSTRUCTION` constant is either removed or not referenced in autoChat flow | Pending |
+| GeminiService has `setSystemInstruction()` method | Source assertion | `src/structures/GeminiService.ts` contains `setSystemInstruction(` | Passed |
+| `cleanResponse()` uses dynamic regex from character name | Source assertion | `src/structures/GeminiService.ts` contains regex construction with character name | Passed |
+| BaseAgent loads personality file at startup | Source assertion | `src/structures/BaseAgent.ts` contains `fs.readFileSync` or equivalent in `onReady` | Passed |
+| Missing personality file disables autoChat gracefully | Behavior | Bot logs error and sets `autoChat = false` when personality file missing | Passed |
+| Hardcoded `HUONG_PERSONALITY_INSTRUCTION` is removed or unused | Source assertion | `HUONG_PERSONALITY_INSTRUCTION` constant is either removed or not referenced in autoChat flow | Passed |
 
 ## Validation Commands
 

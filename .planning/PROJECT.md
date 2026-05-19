@@ -7,22 +7,12 @@ Discord self-bot / automation bot optimized with Gemini conversational capabilit
 Cung cấp các tính năng tự động hóa, trò chuyện thông minh sử dụng Gemini API, tối ưu hiệu năng, và quản lý trạng thái mượt mà, ổn định trên Discord.
 
 ## Current State
-Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modularized, and strictly typed under modern ESLint Flat Config and TypeScript compile environments.
+- Shipped **v1.0** on 2026-05-18: Project reorganization, code quality checks (ESLint Flat Config), strict TypeScript, and bug fixes (Gemini API rotation).
+- Shipped **v1.1** on 2026-05-19: Advanced multi-bot roleplaying AutoChat engine running on 5 separate PM2 processes, featuring parallel human-like burst typing, custom regex personality loaders, Redis-based dual-layer shared channel history, and atomic round-robin initiator claims via Lua scripts.
 
-## Current Milestone: v1.1 Advanced AutoChat & Multi-bot Roleplay
+## Current Milestone: Planning Next Milestone
 
-**Goal:** Rewrite core feature autoChat so 5 selfbot processes (1 per Discord account) roleplay as distinct characters and converse naturally in a shared channel — triggered only by mentions/replies, with human-like delays.
-
-**Architecture:** 5 separate PM2 processes. Each process = 1 BaseAgent + 1 Discord token. Bots communicate via Discord events (messageCreate) — no IPC needed.
-
-**Target features:**
-- Config schema: `autoChatCharacter`, `autoChatBotIDs`, `autoChatChannelID` per bot JSON
-- Character personality injection into Gemini prompts
-- Mention/Reply-only trigger (only from known bot IDs)
-- Human-like delay (5-15s random) + typing indicator
-- Gemini decides in-character who to @mention next
-- Shared conversation history via Redis per channel
-- Conversation initiator mechanism (one bot starts a topic periodically)
+**Goal:** Define and initialize the goals for the next major milestone. Run `/gsd-new-milestone` to start.
 
 ---
 
@@ -36,13 +26,13 @@ Shipped **v1.0** on 2026-05-18. The project has been fully reorganized, modulari
 - ✓ **FIX-02**: Tối ưu hóa hiệu năng, refactor flow code để chạy mượt mà và an toàn hơn — v1.0
 
 ### Active
-- [ ] **AUTOCHAT-01**: Extend bot config JSON schema with `autoChatCharacter` (personality prompt), `autoChatBotIDs` (array of participant bot user IDs), and `autoChatChannelID`.
-- [ ] **AUTOCHAT-02**: Inject configured character personality into the Gemini system instruction so all generated responses align with the bot's role.
-- [ ] **AUTOCHAT-03**: Only trigger replies when explicitly @mentioned or replied-to in `autoChatChannelID`, and only from senders whose ID is in `autoChatBotIDs`.
-- [ ] **AUTOCHAT-04**: Simulate human-like behavior: display typing indicator (`sendTyping`) + random delay (5-15s) before sending reply.
-- [ ] **AUTOCHAT-05**: Gemini decides in-character who to @mention next (0 or more bots from `autoChatBotIDs`). If no mention → reply to the message that triggered the response.
-- [ ] **AUTOCHAT-06**: Manage shared per-channel conversation history via Redis/RAM dual-layer cache so all bots see full context.
-- [ ] **AUTOCHAT-07**: Implement conversation initiator: one bot periodically sends an opening message + mentions others to start a new topic.
+- ✓ **AUTOCHAT-01**: Extend bot config JSON schema with `autoChatCharacter` (personality prompt), `autoChatBotIDs` (array of participant bot user IDs), and `autoChatChannelID` — v1.1
+- ✓ **AUTOCHAT-02**: Inject configured character personality into the Gemini system instruction so all generated responses align with the bot's role — v1.1
+- ✓ **AUTOCHAT-03**: Only trigger replies when explicitly @mentioned or replied-to in `autoChatChannelID`, and only from senders whose ID is in `autoChatBotIDs` — v1.1
+- ✓ **AUTOCHAT-04**: Simulate human-like behavior: display typing indicator (`sendTyping`) + random delay (5-15s) before sending reply — v1.1
+- ✓ **AUTOCHAT-05**: Gemini decides in-character who to @mention next (0 or more bots from `autoChatBotIDs`). If no mention → reply to the message that triggered the response — v1.1
+- ✓ **AUTOCHAT-06**: Manage shared per-channel conversation history via Redis/RAM dual-layer cache so all bots see full context — v1.1
+- ✓ **AUTOCHAT-07**: Implement conversation initiator: one bot periodically sends an opening message + mentions others to start a new topic — v1.1
 
 ### Out of Scope
 - Captcha Solvers (purged due to security risks and dependency bloat).
