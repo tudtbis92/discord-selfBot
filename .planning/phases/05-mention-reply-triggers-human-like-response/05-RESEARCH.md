@@ -1,6 +1,6 @@
 # Phase 5: Mention/Reply Triggers & Human-like Response - Research
 
-**Researched:** 2026-05-18
+**Researched:** 2026-05-18 (FORCE REFRESH)
 **Domain:** Discord.js selfbot event handling, typing indicators, LLM mention extraction, queue management
 **Confidence:** HIGH
 
@@ -38,15 +38,15 @@
 | ID | Description | Research Support |
 |----|-------------|------------------|
 | AUTOCHAT-03 | Only trigger replies when explicitly @mentioned or replied-to in `autoChatChannelID`, and only from senders whose ID is in `autoChatBotIDs`. | Mention/reply detection via `message.mentions.users.has()` and `message.reference.messageId`. Sender validation against `autoChatBotIDs` Set. |
-| AUTOCHAT-04 | Simulate human-like behavior: display typing indicator (`sendTyping`) + random delay (5-15s) before sending reply. | `channel.sendTyping()` available on TextChannel. Burst typing with ~10s refresh interval. `ranInt()` utility exists. |
+| AUTOCHAT-04 | Simulate human-like behavior: display typing indicator (`sendTyping`) + random delay (5-15s) before sending reply. | `channel.sendTyping()` available on TextBasedChannel interface. Burst typing with ~10s refresh interval. `ranInt()` utility exists. |
 | AUTOCHAT-05 | Gemini decides in-character who to @mention next (0 or more bots from `autoChatBotIDs`). If no mention → reply to the message that triggered the response. | Regex `/<@!?(\d+)>/g` for mention extraction. Validation against `autoChatBotIDs`. `message.reply()` for 0-mention case, `channel.send()` for 1+-mention case. |
 </phase_requirements>
 
 ## Summary
 
-This phase rewrites the `AutoChatManager` in `src/feats/autoChat.ts` to implement strict mention/reply-triggered responses with human-like delay behavior. The existing codebase already has the scaffolding: `isProcessingMention` flag, `setupMessageListener()` with mention/reply detection, `ranInt()` utility, and `geminiService.generateResponseWithInstruction()`. The key work is implementing the burst typing pattern, mention queue with deduplication, and Gemini mention extraction/validation.
+This phase rewrites the `AutoChatManager` in `src/feats/autoChat.ts` to implement strict mention/reply-triggered responses with human-like delay behavior. The existing codebase already has the scaffolding: `isProcessingMention` flag, `setupMessageListener()` with mention/reply detection, `ranInt()` utility, and `geminiService.generateResponseWithInstruction()`. Phase 4 is fully implemented — `BaseAgent.onReady()` loads personality files, resolves bot display names, and injects the name-to-ID mapping into the system instruction. The key work is implementing the burst typing pattern, mention queue with deduplication, and Gemini mention extraction/validation.
 
-**Primary recommendation:** Rewrite `handleMentionOrReply()` with a FIFO queue (array-based, capped at 3), burst typing intervals refreshing every ~8s, and regex-based `<@ID>` extraction validated against the `autoChatBotIDs` Set. Use the existing `geminiService.generateResponseWithInstruction()` for LLM calls.
+**Primary recommendation:** Rewrite `handleMentionOrReply()` with a FIFO queue (array-based, capped at 3), burst typing intervals refreshing every ~8s, and regex-based `<@ID>` extraction validated against the `autoChatBotIDs` Set. Use the existing `geminiService.generateResponseWithInstruction()` for LLM calls. Start the Gemini API call immediately when processing begins and continue burst typing until the response arrives — this keeps total visible delay within 5-15s.
 
 ## Architectural Responsibility Map
 
@@ -64,7 +64,7 @@ This phase rewrites the `AutoChatManager` in `src/feats/autoChat.ts` to implemen
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| `discord.js-selfbot-v13` | 3.7.1 [VERIFIED: npm registry] | Discord selfbot client — message events, typing, sending | Already in project, provides `messageCreate`, `sendTyping()`, `message.reply()` |
+| `discord.js-selfbot-v13` | 3.7.1 [VERIFIED: npm registry] | Discord selfbot client — message events, typing, sending | Already in project, provides `messageCreate`, `sendTyping()`, `message.reply()`, `allowedMentions` |
 | `@google/genai` | 2.4.0 [VERIFIED: npm registry] | Gemini API for response generation | Already in project, supports `systemInstruction` and `generateContent` |
 
 ### Supporting
@@ -100,6 +100,8 @@ No new packages are introduced by this phase. All required libraries (`discord.j
 
 **Packages removed due to slopcheck [SLOP] verdict:** none
 **Packages flagged as suspicious [SUS]:** none
+
+**⚠️ Risk note:** `discord.js-selfbot-v13` was **archived on Oct 11, 2025** and is in maintenance mode. No new features will be added. The library is based on discord.js@13.17 with backports from discord.js@14.21.0. This does not block Phase 5 but is a long-term maintenance risk. [CITED: github.com/aiko-chan-ai/discord.js-selfbot-v13/discussions/1743]
 
 ## Architecture Patterns
 
@@ -142,7 +144,8 @@ Discord Channel (autoChatChannelID)
 │  │   If new mention → extend +3-8s   │  │
 │  └───────────────────────────────────┘  │
 └────────────┬────────────────────────────┘
-             │
+             │ (Gemini call starts immediately,
+             │  typing continues until response)
              ▼
 ┌─────────────────────────────────────────┐
 │  Gemini API Call                         │
@@ -195,8 +198,8 @@ src/utils/
 
 **Example:**
 ```typescript
-// Source: discord.js-selfbot-v13 TextBasedChannel.sendTyping() + Discord API docs
-// Typing indicator expires after ~10s; refresh every ~8s for safety
+// Source: DeepWiki discord.js-selfbot-v13 TextBasedChannel.sendTyping()
+// + Discord API docs — typing indicator expires after ~10s
 
 private async burstTyping(channel: TextChannel, totalMs: number): Promise<void> {
   const start = Date.now();
@@ -309,8 +312,9 @@ private enqueueTrigger(message: Message): boolean {
 | Queue management | Custom linked list or external queue library | Native `Array.push()`/`Array.shift()` | Max 3 items — array is O(1) for these operations at this scale |
 | Bot ID validation | Array `.includes()` in hot path | `Set<string>.has()` | O(1) lookup vs O(n); cleaner semantics for membership checks |
 | Gemini response generation | Custom HTTP calls to Gemini REST API | `geminiService.generateResponseWithInstruction()` | Already handles API key rotation, retry logic, rate limit backoff, and error parsing |
+| Reply message sending | Manual `message_reference` construction | `message.reply({ content, allowedMentions })` | discord.js-selfbot-v13 provides `Message.reply()` method and `send({ reply: {...} })` option [CITED: DeepWiki 7.1-sending-and-editing-messages] |
 
-**Key insight:** The existing codebase already provides 80% of the building blocks. The phase is about wiring them together correctly, not building new infrastructure.
+**Key insight:** The existing codebase already provides 80% of the building blocks. Phase 4 is fully implemented — personality loading, name-to-ID mapping injection, and `generateResponseWithInstruction()` are all working. The phase is about wiring them together correctly, not building new infrastructure.
 
 ## Common Pitfalls
 
@@ -335,13 +339,13 @@ private enqueueTrigger(message: Message): boolean {
 ### Pitfall 4: `message.reference.messageId` Points to Deleted Message
 **What goes wrong:** A bot replies to a message that was subsequently deleted. `this.autoChatChannel.messages.cache.get(message.reference.messageId)` returns `undefined`, causing a crash when accessing `.author.id`.
 **Why it happens:** Discord message cache doesn't contain deleted messages, and the reference still points to the deleted message ID.
-**How to avoid:** Use optional chaining: `this.autoChatChannel.messages.cache.get(message.reference.messageId)?.author.id === this.agent.user?.id`. If the referenced message isn't cached, fetch it via API or treat as non-reply trigger.
+**How to avoid:** Use optional chaining: `this.autoChatChannel.messages.cache.get(message.reference.messageId)?.author.id === this.agent.user?.id`. If the referenced message isn't cached, treat as non-reply trigger (only the @mention path fires).
 **Warning signs:** `TypeError: Cannot read properties of undefined (reading 'author')` in logs.
 
 ### Pitfall 5: Gemini API Latency Adds to Perceived Delay
 **What goes wrong:** The 5-15s delay completes, then Gemini takes another 3-8s to respond. Total delay becomes 8-23s, breaking the human-like illusion.
 **Why it happens:** Gemini API response time is variable and depends on prompt complexity, API load, and key rotation.
-**How to avoid:** Start the Gemini API call early (during the typing phase, not after the delay completes). Or reduce the random delay range to account for average API latency (e.g., 3-10s delay + 2-5s API = 5-15s total).
+**How to avoid:** Start the Gemini API call immediately when processing begins (not after the delay completes). Continue burst typing until the response is received. This way the total visible delay is `max(typing_duration, api_latency)`, which stays within the 5-15s range for most cases.
 **Warning signs:** Consistently longer delays than configured, especially during peak API usage.
 
 ### Pitfall 6: `messageCreate` Fires for Own Messages
@@ -350,13 +354,19 @@ private enqueueTrigger(message: Message): boolean {
 **How to avoid:** The existing code already checks `message.author.id === this.agent.user?.id`. Ensure this check runs before any other processing. Also verify the sender is in `autoChatBotIDs` (D-01), which implicitly excludes self since the bot's own ID is in the list but handled by the self-check.
 **Warning signs:** Bot responding to its own messages, exponential message growth.
 
+### Pitfall 7: discord.js-selfbot-v13 Is Archived
+**What goes wrong:** Future Discord API changes may break `sendTyping()`, `message.reply()`, or `messageCreate` event behavior with no library updates to fix them.
+**Why it happens:** The library was archived on Oct 11, 2025. It is based on discord.js@13.17 with backports from discord.js@14.21.0. No new features or Discord API updates will be added. [CITED: github.com/aiko-chan-ai/discord.js-selfbot-v13/discussions/1743]
+**How to avoid:** For Phase 5 this is not a blocker — the current API surface is stable. Document the risk and plan for a library migration in a future milestone if Discord API changes break functionality.
+**Warning signs:** Discord API deprecation notices, `messageCreate` events not firing, `sendTyping()` returning errors.
+
 ## Code Examples
 
 Verified patterns from official sources:
 
 ### Mention/Reply Detection (discord.js-selfbot-v13)
 ```typescript
-// Source: Context7 /aiko-chan-ai/discord.js-selfbot-v13 — messageCreate event handling
+// Source: DeepWiki /aiko-chan-ai/discord.js-selfbot-v13 — messageCreate event handling
 // Combined with existing autoChat.ts pattern
 
 this.agent.on('messageCreate', async (message: Message) => {
@@ -386,8 +396,8 @@ this.agent.on('messageCreate', async (message: Message) => {
 
 ### Burst Typing Pattern
 ```typescript
-// Source: Discord API docs — typing indicator expires after ~10s
-// Stack Overflow verified pattern for refresh intervals
+// Source: DeepWiki discord.js-selfbot-v13 TextBasedChannel.sendTyping()
+// + Discord API docs — typing indicator expires after ~10s
 
 private async simulateTyping(channel: TextChannel, durationMs: number): Promise<void> {
   const start = Date.now();
@@ -436,6 +446,7 @@ private parseMentions(
 ### Response Sending Strategy (D-11)
 ```typescript
 // Source: D-11 decision — 0 mentions = reply, 1+ = standalone
+// DeepWiki confirms Message.reply() and send({ reply: {...} }) both exist
 
 private async sendResponse(
   trigger: Message,
@@ -464,6 +475,7 @@ private async sendResponse(
 | Hardcoded personality in GeminiService | Dynamic personality from file + system instruction | Phase 4 | Each bot has unique character |
 | No mention validation | Regex extraction + ID validation | This phase | Prevents hallucinated mentions |
 | Single sendTyping() call | Burst typing with random refresh intervals | This phase | Typing indicator persists through full delay |
+| Sequential delay then API call | Parallel: API call starts immediately, typing continues until response | This phase | Total delay stays within 5-15s range |
 
 **Deprecated/outdated:**
 - `sendRandomChat()`: The old periodic random-chat behavior is being replaced by mention-triggered responses. The method still exists but is DISABLED.
@@ -482,24 +494,26 @@ private async sendResponse(
 1. **Should the Gemini API call start during the typing delay or after?**
    - What we know: Starting it early reduces total latency but means typing continues after the response is ready. Starting it after means total delay = typing delay + API latency.
    - What's unclear: Whether the burst typing should continue after the API response is received (to mask the exact moment the response was ready).
-   - Recommendation: Start Gemini call immediately when processing begins. Continue burst typing until the response is received. This way the total visible delay is `max(typing_duration, api_latency)`, which stays within the 5-15s range for most cases.
+   - **Recommendation:** Start Gemini call immediately when processing begins. Continue burst typing until the response is received. This way the total visible delay is `max(typing_duration, api_latency)`, which stays within the 5-15s range for most cases.
 
 2. **How to handle `message.reference.messageId` when the referenced message is not in cache?**
    - What we know: `this.autoChatChannel.messages.cache.get()` may return `undefined` for deleted or uncached messages.
    - What's unclear: Whether fetching the message via API (`channel.messages.fetch()`) is worth the extra latency and API call.
-   - Recommendation: Use optional chaining to safely handle `undefined`. If the referenced message isn't cached, treat it as a non-reply trigger (only the @mention path fires). This avoids extra API calls and is safe for the selfbot use case.
+   - **Recommendation:** Use optional chaining to safely handle `undefined`. If the referenced message isn't cached, treat it as a non-reply trigger (only the @mention path fires). This avoids extra API calls and is safe for the selfbot use case.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Node.js | Runtime | ✓ | v22+ (per package.json engines) | — |
+| Node.js | Runtime | ✓ | v22+ (per env) | — |
 | discord.js-selfbot-v13 | Message events, typing, sending | ✓ | 3.7.1 | — |
 | @google/genai | Gemini API calls | ✓ | 2.4.0 | — |
 | TypeScript | Compilation | ✓ | 6.0.3 | — |
 | npm | Package management | ✓ | 10+ | — |
 | Discord API (user token) | All Discord operations | ✓ | — | — |
 | Gemini API key | LLM response generation | ✓ | — | Key rotation already built into GeminiService |
+
+**⚠️ Note:** `discord.js-selfbot-v13` requires **Node.js 20.18.0 or newer** [CITED: npm package README]. The project's `package.json` says `>=16` which is outdated. The current environment runs Node.js v22+ so this is not a blocker, but the package.json engines field should be updated.
 
 **Missing dependencies with no fallback:** None.
 
@@ -562,22 +576,21 @@ No test framework is currently configured in the project. `package.json` has `"t
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Context7 /aiko-chan-ai/discord.js-selfbot-v13](https://context7.com/aiko-chan-ai/discord.js-selfbot-v13) — messageCreate event handling, sendSlash examples, library capabilities
-- [discord.js-selfbot-v13 GitHub](https://github.com/aiko-chan-ai/discord.js-selfbot-v13) — SlashCommand examples showing sendTyping context
+- [DeepWiki /aiko-chan-ai/discord.js-selfbot-v13](https://deepwiki.com/aiko-chan-ai/discord.js-selfbot-v13) — Full library documentation indexed Oct 2025, including Message System (7.1), TextBasedChannel interface, sendTyping(), Message.reply(), allowedMentions
 - [Discord API Documentation — Typing Indicator](https://discord.com/developers/docs/resources/channel#trigger-typing-indicator) — 10s expiry behavior
-- [Existing codebase: `src/feats/autoChat.ts`](E:\Saeth\selftBot-owo\src\feats\autoChat.ts) — current AutoChatManager implementation
+- [Existing codebase: `src/feats/autoChat.ts`](E:\Saeth\selftBot-owo\src\feats\autoChat.ts) — current AutoChatManager implementation (verified 2026-05-18)
+- [Existing codebase: `src/structures/BaseAgent.ts`](E:\Saeth\selftBot-owo\src\structures\BaseAgent.ts) — Phase 4 personality loading + name-to-ID mapping (verified complete)
 - [Existing codebase: `src/structures/GeminiService.ts`](E:\Saeth\selftBot-owo\src\structures\GeminiService.ts) — generateResponseWithInstruction, cleanResponse, splitResponse methods
-- [Existing codebase: `src/structures/BaseAgent.ts`](E:\Saeth\selftBot-owo\src\structures\BaseAgent.ts) — personality loading, name-to-ID mapping injection
 - [Existing codebase: `src/utils/utils.ts`](E:\Saeth\selftBot-owo\src\utils\utils.ts) — ranInt() utility
 - [Existing codebase: `src/typings/typings.ts`](E:\Saeth\selftBot-owo\src\typings\typings.ts) — Configuration interface with autoChat fields
-- [npm registry: discord.js-selfbot-v13](https://www.npmjs.com/package/discord.js-selfbot-v13) — version 3.7.1 confirmed
+- [npm registry: discord.js-selfbot-v13](https://www.npmjs.com/package/discord.js-selfbot-v13) — version 3.7.1 confirmed, archived status confirmed
 - [npm registry: @google/genai](https://www.npmjs.com/package/@google/genai) — version 2.4.0 confirmed
 
 ### Secondary (MEDIUM confidence)
 - [Stack Overflow: extend typing indicator](https://stackoverflow.com/questions/77884689/trying-to-extend-the-typing-indicator-for-discord-bot) — confirmed 10s limit and refresh pattern
 - [discord.js issue #10061](https://github.com/discordjs/discord.js/issues/10061) — confirmed 10s typing limit is Discord API-side, not library-side
-- [Javacord Rate Limits](https://javacord.org/wiki/advanced-topics/ratelimits.html) — Discord rate limit reference (5 messages/5s per channel)
 - [Phase 4 CONTEXT.md](E:\Saeth\selftBot-owo\.planning\phases\04-config-schema-personality-injection\04-CONTEXT.md) — name-to-ID mapping format, personality loading
+- [Phase 5 CONTEXT.md](E:\Saeth\selftBot-owo\.planning\phases\05-mention-reply-triggers-human-like-response\05-CONTEXT.md) — all D-01 through D-13 decisions
 
 ### Tertiary (LOW confidence)
 - Gemini 2.5-flash average response latency for short prompts — estimated at 2-5s based on general knowledge, not measured
@@ -586,10 +599,39 @@ No test framework is currently configured in the project. `package.json` has `"t
 
 **Confidence breakdown:**
 - Standard stack: HIGH — all packages verified via npm registry, already installed in project
-- Architecture: HIGH — patterns verified via Context7, Discord API docs, and existing codebase analysis
-- Pitfalls: HIGH — typing indicator behavior confirmed via multiple sources (Discord API docs, Stack Overflow, discord.js GitHub issues)
+- Architecture: HIGH — patterns verified via DeepWiki (indexed Oct 2025), Discord API docs, and existing codebase analysis
+- Pitfalls: HIGH — typing indicator behavior confirmed via multiple sources (Discord API docs, Stack Overflow, discord.js GitHub issues); library archival status confirmed via GitHub
 - Mention extraction: HIGH — Discord `<@ID>` format is well-documented; regex pattern is standard
 - Queue management: HIGH — simple array-based queue is a well-understood pattern
 
 **Research date:** 2026-05-18
-**Valid until:** 2026-06-17 (30 days — Discord.js-selfbot-v13 and Gemini API are stable, no breaking changes expected)
+**Valid until:** 2026-06-17 (30 days — Discord.js-selfbot-v13 is archived/stable, Gemini API is stable, no breaking changes expected)
+
+## RESEARCH COMPLETE
+
+**Phase:** 5 - Mention/Reply Triggers & Human-like Response
+**Confidence:** HIGH
+
+### Key Findings
+1. **discord.js-selfbot-v13 is ARCHIVED** (Oct 11, 2025) — not a blocker for Phase 5 but a long-term maintenance risk that should be documented
+2. **Phase 4 is fully implemented** — `BaseAgent.onReady()` loads personality files, resolves bot display names, and injects name-to-ID mapping into system instruction
+3. **DeepWiki confirms** all required APIs exist in discord.js-selfbot-v13: `sendTyping()`, `Message.reply()`, `allowedMentions`, `send({ reply: {...} })`
+4. **No new packages needed** — all dependencies (`discord.js-selfbot-v13@3.7.1`, `@google/genai@2.4.0`) are already installed
+5. **No test framework** — validation will rely on `npm run build` + manual Discord testing
+
+### File Created
+`.planning/phases/05-mention-reply-triggers-human-like-response/05-RESEARCH.md`
+
+### Confidence Assessment
+| Area | Level | Reason |
+|------|-------|--------|
+| Standard Stack | HIGH | All packages verified via npm registry, already installed |
+| Architecture | HIGH | Patterns verified via DeepWiki (Oct 2025 index), Discord API docs, codebase analysis |
+| Pitfalls | HIGH | Typing behavior confirmed via multiple sources; library archival confirmed |
+| API Availability | HIGH | DeepWiki confirms sendTyping, Message.reply, allowedMentions all exist |
+
+### Open Questions
+- None blocking — all open questions have recommendations attached
+
+### Ready for Planning
+Research complete. Planner can now create PLAN.md files.
