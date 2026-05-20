@@ -211,6 +211,7 @@ export class BaseAgent extends Client {
 	 * @returns {Promise<void>}
 	 */
 	public setConfig = async (config: Configuration): Promise<void> => {
+		await Promise.resolve();
 		this.config = config;
 		this.cache = structuredClone(config);
 
@@ -218,6 +219,11 @@ export class BaseAgent extends Client {
 		const apiKeys = config.geminiApiKeys || (config.geminiApiKey ? [config.geminiApiKey] : []);
 		if (apiKeys.length > 0) {
 			geminiService.setApiKeys(apiKeys);
+		}
+
+		// Cập nhật models cho GeminiService từ config
+		if (config.geminiModels && config.geminiModels.length > 0) {
+			geminiService.setModels(config.geminiModels);
 		}
 	};
 

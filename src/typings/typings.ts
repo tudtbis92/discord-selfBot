@@ -52,6 +52,7 @@ export interface Configuration {
 	// Gemini API Configuration
 	geminiApiKey?: string;
 	geminiApiKeys?: string[];
+	geminiModels?: string[];
 
 	// Redis Cache Configuration
 	redisUri?: string;
