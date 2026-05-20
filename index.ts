@@ -59,9 +59,34 @@ program
 			if (path.extname(program.opts().import) !== '.json')
 				return logger.error(`File ${program.opts().import} is not a JSON file!`);
 
-			const data = JSON.parse(
+			// Load central/shared config if exists
+			let sharedConfig: Partial<Configuration> = {};
+			const sharedFiles = ['shared.json', 'config.json'];
+			for (const file of sharedFiles) {
+				const fullPath = path.resolve(file);
+				if (path.resolve(program.opts().import) === fullPath) {
+					continue;
+				}
+				if (fs.existsSync(fullPath)) {
+					try {
+						sharedConfig = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+						logger.info(`Loaded central configuration from: ${file}`);
+						break;
+					} catch (error) {
+						logger.error(new Error(`Failed to parse central configuration file ${file}: ${error instanceof Error ? error.message : String(error)}`));
+					}
+				}
+			}
+
+			const specificConfig = JSON.parse(
 				fs.readFileSync(path.resolve(program.opts().import), 'utf-8'),
 			) as Configuration;
+
+			const data = {
+				...sharedConfig,
+				...specificConfig,
+			} as Configuration;
+
 			if (!data) return logger.error(`File ${program.opts().import} is empty!`);
 
 			try {
@@ -81,14 +106,34 @@ program
 				logger.error('Failed to import data file');
 			}
 		} else {
-			const config = await InquirerConfig(agent);
-			await agent.setConfig(config);
+			// Load central/shared config for defaults if exists
+			let sharedConfig: Partial<Configuration> = {};
+			const sharedFiles = ['shared.json', 'config.json'];
+			for (const file of sharedFiles) {
+				const fullPath = path.resolve(file);
+				if (fs.existsSync(fullPath)) {
+					try {
+						sharedConfig = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+						logger.info(`Loaded central configuration for interactive defaults from: ${file}`);
+						break;
+					} catch (error) {
+						logger.error(new Error(`Failed to parse central configuration file ${file}: ${error instanceof Error ? error.message : String(error)}`));
+					}
+				}
+			}
+
+			const config = await InquirerConfig(agent, sharedConfig);
+			const data = {
+				...sharedConfig,
+				...config,
+			} as Configuration;
+			await agent.setConfig(data);
 
 			// Register events TRƯỚC KHI login
 			agent.registerEvents();
 
 			// Login
-			await agent.checkAccount(config.token);
+			await agent.checkAccount(data.token);
 
 			// Chỉ register thêm các handler sau khi login
 			agent.run();

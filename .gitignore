@@ -19,3 +19,4 @@ dest/
 !package.json
 !tsconfig.json
 !config.example.json
+!shared.example.json
