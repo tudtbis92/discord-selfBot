@@ -70,13 +70,7 @@ class ModelManager {
 		this.models =
 			models.length > 0
 				? models
-				: [
-						'gemini-3.1-flash-lite',
-						'gemini-3.1-flash-live-preview',
-						'gemini-2.5-flash-native-audio-preview-12-2025',
-						'gemma-4-26b-a4b-it',
-						'gemma-4-31b-it',
-					];
+				: ['gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
 	}
 
 	public getCurrentModel(): string {
